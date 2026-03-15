@@ -1,8 +1,8 @@
 import { catppuccinTheme } from "./catppuccin";
 import type { ThemeTokens } from "../theme-types";
-import { gruvboxMaterialTheme } from "./gruvboxMaterial";
+import { gruvboxMaterialTheme } from "./gruvbox-material";
 import { nordTheme } from "./nord";
-import { oneDarkTheme } from "./oneDark";
+import { oneDarkTheme } from "./one-dark";
 
 export const builtInThemes: ThemeTokens[] = [
   gruvboxMaterialTheme,

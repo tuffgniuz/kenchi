@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { FloatingPanel } from "./FloatingPanel";
+import { FloatingPanel } from "./floating-panel";
 
 export type CommandPaletteItem = {
   id: string;

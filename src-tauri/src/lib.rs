@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,14 +41,6 @@ fn initialize_vault(path: &str) -> Result<String, String> {
     fs::create_dir_all(&kenchi_dir).map_err(|error| {
         format!(
             "Failed to initialize .inbox directory at {}: {}",
-            resolved.display(),
-            error
-        )
-    })?;
-
-    fs::create_dir_all(resolved.join("notes")).map_err(|error| {
-        format!(
-            "Failed to initialize notes directory at {}: {}",
             resolved.display(),
             error
         )
