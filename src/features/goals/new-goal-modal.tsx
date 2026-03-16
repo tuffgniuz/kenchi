@@ -1,14 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { FloatingPanel } from "../../components/floating-panel";
-import type { GoalMetricType, GoalPeriod } from "../../models/item";
-
-const metricOptions: Array<{ id: GoalMetricType; label: string }> = [
-  { id: "tasks_completed", label: "Tasks completed" },
-  { id: "inbox_items_processed", label: "Inbox items processed" },
-  { id: "journal_entries_written", label: "Journal entries written" },
-  { id: "notes_created", label: "Notes created" },
-];
+import type { GoalMetric, GoalPeriod, GoalTrackingMode } from "../../models/item";
 
 const periodOptions: Array<{ id: GoalPeriod; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -17,150 +10,280 @@ const periodOptions: Array<{ id: GoalPeriod; label: string }> = [
   { id: "yearly", label: "Yearly" },
 ];
 
+const automaticMetricOptions: Array<{ id: GoalMetric; label: string }> = [
+  { id: "tasks_completed", label: "Tasks completed" },
+  { id: "inbox_items_processed", label: "Inbox items processed" },
+  { id: "journal_entries_written", label: "Journal entries written" },
+  { id: "notes_created", label: "Notes created" },
+];
+
 export function NewGoalModal({
   isOpen,
   onClose,
+  projects,
   onSubmit,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  projects: Array<{ id: string; name: string }>;
   onSubmit: (goal: {
     title: string;
     description: string;
-    targetValue: number;
+    target: number;
     period: GoalPeriod;
-    metricType: GoalMetricType;
-    project: string;
-    tagFilter: string;
+    trackingMode: GoalTrackingMode;
+    metric: GoalMetric;
+    projectId: string;
   }) => void;
 }) {
+  const formRef = useRef<HTMLFormElement | null>(null);
   const [title, setTitle] = useState("");
+  const [titleTouched, setTitleTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [targetValue, setTargetValue] = useState("1");
   const [period, setPeriod] = useState<GoalPeriod>("daily");
-  const [metricType, setMetricType] = useState<GoalMetricType>("tasks_completed");
-  const [project, setProject] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
+  const [trackingMode, setTrackingMode] = useState<GoalTrackingMode>("automatic");
+  const [metric, setMetric] = useState<GoalMetric>("tasks_completed");
+  const [projectId, setProjectId] = useState("");
+
+  const parsedTarget = Number.parseInt(targetValue, 10);
+  const safeTarget = Number.isNaN(parsedTarget) || parsedTarget <= 0 ? 1 : parsedTarget;
+  const selectedProject = projects.find((project) => project.id === projectId) ?? null;
+  const generatedTitle = buildGoalSummary(safeTarget, period, selectedProject?.name ?? "");
+  const previewTitle = title.trim() || generatedTitle;
 
   useEffect(() => {
     if (!isOpen) {
       setTitle("");
+      setTitleTouched(false);
       setDescription("");
       setTargetValue("1");
       setPeriod("daily");
-      setMetricType("tasks_completed");
-      setProject("");
-      setTagFilter("");
+      setTrackingMode("automatic");
+      setMetric("tasks_completed");
+      setProjectId("");
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!titleTouched) {
+      setTitle(generatedTitle);
+    }
+  }, [generatedTitle, titleTouched]);
 
   if (!isOpen) {
     return null;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsedTarget = Number.parseInt(targetValue, 10);
+  function submitGoal() {
+    const resolvedTitle = title.trim() || generatedTitle.trim();
 
-    if (!title.trim() || Number.isNaN(parsedTarget) || parsedTarget <= 0) {
+    if (!resolvedTitle) {
       return;
     }
 
     onSubmit({
-      title: title.trim(),
+      title: resolvedTitle,
       description: description.trim(),
-      targetValue: parsedTarget,
+      target: safeTarget,
       period,
-      metricType,
-      project: project.trim(),
-      tagFilter: tagFilter.trim(),
+      trackingMode,
+      metric,
+      projectId,
     });
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitGoal();
   }
 
   return (
     <FloatingPanel ariaLabelledBy="new-goal-title" className="new-goal" onClose={onClose}>
-      <form className="new-goal__form" onSubmit={handleSubmit}>
-        <p id="new-goal-title" className="new-task__title">
-          New goal
-        </p>
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          className="new-task__input"
-          placeholder="Title"
-          aria-label="Goal title"
-          autoFocus
-        />
-        <textarea
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          className="new-task__textarea"
-          placeholder="Description"
-          aria-label="Goal description"
-        />
-        <div className="new-goal__grid">
-          <label className="new-goal__field">
-            <span className="new-goal__label">Target</span>
+      <form
+        ref={formRef}
+        className="new-goal__form"
+        onSubmit={handleSubmit}
+        onKeyDownCapture={(event) => {
+          if (event.key !== "Enter") {
+            return;
+          }
+
+          if (event.target instanceof HTMLTextAreaElement) {
+            if (event.metaKey || event.ctrlKey) {
+              event.preventDefault();
+              formRef.current?.requestSubmit();
+            }
+
+            return;
+          }
+
+          event.preventDefault();
+          formRef.current?.requestSubmit();
+        }}
+      >
+        <header className="new-goal__header">
+          <h2 id="new-goal-title" className="new-goal__title">
+            New Goal
+          </h2>
+          <p className="new-goal__copy">Define a measurable goal for your workflow</p>
+        </header>
+
+        <section className="new-goal__section">
+          <div className="new-goal__section-header">
+            <p className="new-goal__section-title">How should progress be tracked?</p>
+          </div>
+          <div className="new-goal__tracking-options" role="radiogroup" aria-label="Goal tracking mode">
+            <button
+              type="button"
+              className={`new-goal__tracking-option ${
+                trackingMode === "automatic" ? "is-active" : ""
+              }`}
+              onClick={() => setTrackingMode("automatic")}
+              aria-pressed={trackingMode === "automatic"}
+            >
+              <span className="new-goal__tracking-option-title">Automatically from activity</span>
+              <span className="new-goal__tracking-option-copy">
+                Progress updates when tasks or notes are completed.
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`new-goal__tracking-option ${
+                trackingMode === "manual" ? "is-active" : ""
+              }`}
+              onClick={() => {
+                setTrackingMode("manual");
+                setMetric("manual_units");
+              }}
+              aria-pressed={trackingMode === "manual"}
+            >
+              <span className="new-goal__tracking-option-title">Manually</span>
+              <span className="new-goal__tracking-option-copy">
+                Increment progress yourself when work is finished.
+              </span>
+            </button>
+          </div>
+          {trackingMode === "automatic" ? (
+            <label className="new-goal__field">
+              <span className="new-goal__label">Source</span>
+              <select
+                value={metric}
+                onChange={(event) => setMetric(event.target.value as GoalMetric)}
+                className="new-goal__select"
+                aria-label="Automatic goal source"
+              >
+                {automaticMetricOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </section>
+
+        <section className="new-goal__section">
+          <div className="new-goal__sentence" aria-label="Goal builder">
+            <span className="new-goal__sentence-text">I want to complete</span>
             <input
               value={targetValue}
               onChange={(event) => setTargetValue(event.target.value)}
-              className="new-task__input"
+              className="new-goal__sentence-input"
               inputMode="numeric"
               aria-label="Goal target"
+              autoFocus
             />
-          </label>
-          <label className="new-goal__field">
-            <span className="new-goal__label">Period</span>
+            <span className="new-goal__sentence-text">
+              {trackingMode === "manual" ? "units per" : "tasks per"}
+            </span>
             <select
               value={period}
               onChange={(event) => setPeriod(event.target.value as GoalPeriod)}
-              className="new-goal__select"
+              className="new-goal__sentence-select"
               aria-label="Goal period"
             >
               {periodOptions.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.label}
+                  {option.label.toLowerCase()}
                 </option>
               ))}
             </select>
-          </label>
-          <label className="new-goal__field new-goal__field--full">
-            <span className="new-goal__label">Metric</span>
-            <select
-              value={metricType}
-              onChange={(event) => setMetricType(event.target.value as GoalMetricType)}
-              className="new-goal__select"
-              aria-label="Goal metric"
-            >
-              {metricOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          </div>
+        </section>
+
+        <section className="new-goal__section">
+          <div className="new-goal__section-header">
+            <p className="new-goal__section-title">Scope</p>
+            <span className="new-goal__section-hint">(optional)</span>
+          </div>
           <label className="new-goal__field">
             <span className="new-goal__label">Project</span>
-            <input
-              value={project}
-              onChange={(event) => setProject(event.target.value)}
-              className="new-task__input"
-              placeholder="Optional"
+            <select
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+              className="new-goal__select"
               aria-label="Goal project"
+            >
+              <option value="">Select project</option>
+              {projects.map((availableProject) => (
+                <option key={availableProject.id} value={availableProject.id}>
+                  {availableProject.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+
+        <section className="new-goal__section">
+          <div className="new-goal__section-header">
+            <p className="new-goal__section-title">Details</p>
+          </div>
+          <label className="new-goal__field">
+            <input
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setTitleTouched(true);
+              }}
+              className="new-goal__input"
+              placeholder={generatedTitle}
+              aria-label="Goal title"
             />
           </label>
           <label className="new-goal__field">
-            <span className="new-goal__label">Tag</span>
-            <input
-              value={tagFilter}
-              onChange={(event) => setTagFilter(event.target.value)}
-              className="new-task__input"
-              placeholder="Optional"
-              aria-label="Goal tag"
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              className="new-goal__textarea"
+              placeholder="Optional description..."
+              aria-label="Goal description"
             />
           </label>
-        </div>
+        </section>
+
+        <section className="new-goal__section">
+          <div className="new-goal__section-header">
+            <p className="new-goal__section-title">Preview</p>
+          </div>
+          <div className="new-goal__preview">
+            {previewTitle}
+            {selectedProject ? ` - ${selectedProject.name}` : ""}
+          </div>
+        </section>
+        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
     </FloatingPanel>
   );
+}
+
+function buildGoalSummary(targetValue: number, period: GoalPeriod, projectName: string) {
+  const normalizedProject = projectName.trim();
+  const periodLabel = period.slice(0, 1).toUpperCase() + period.slice(1);
+
+  if (normalizedProject) {
+    return `Complete ${targetValue} tasks per ${periodLabel} for ${normalizedProject}`;
+  }
+
+  return `Complete ${targetValue} tasks per ${periodLabel}`;
 }

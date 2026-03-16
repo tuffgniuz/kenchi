@@ -1,19 +1,35 @@
 import { viewTitles } from "../../app/navigation";
 import type { ViewId } from "../../app/types";
 import type { Item } from "../../models/item";
+import type { JournalEntry, JournalEntrySummary } from "../../models/journal";
+import type { Project } from "../../models/project";
 import { CaptureInboxPage } from "../inbox/capture-inbox-page";
+import { JournalingPage } from "../journaling/journaling-page";
 import { GoalsPage } from "../goals/goals-page";
+import { ProjectsPage } from "../projects/projects-page";
 import { TasksPage } from "../tasks/tasks-page";
 
 type PageContentProps = {
   activeView: ViewId;
   items: Item[];
+  todayDate: string;
+  journalSummaries: JournalEntrySummary[];
+  selectedJournalDate: string;
+  journalEntry: JournalEntry;
+  todayJournalEntry: JournalEntry;
+  projects: Project[];
   selectedGoalId: string;
   selectedTaskId: string;
   onSelectGoal: (goalId: string) => void;
   onUpdateGoal: (goalId: string, updates: Partial<Item>) => void;
+  onDeleteGoal: (goalId: string) => void;
   onSelectTask: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: Partial<Item>) => void;
+  onDeleteTask: (taskId: string) => void;
+  onUpdateProject: (projectId: string, updates: Partial<Project>) => void;
+  onDeleteProject: (projectId: string) => void;
+  onUpdateJournalEntry: (updates: Partial<JournalEntry>) => void;
+  onSelectJournalDate: (date: string) => void;
   onTransformItem: (itemId: string, kind: Item["kind"]) => void;
   onUpdateItemState: (itemId: string, state: Item["state"]) => void;
   onDeleteItem: (itemId: string) => void;
@@ -23,12 +39,24 @@ type PageContentProps = {
 export function PageContent({
   activeView,
   items,
+  todayDate,
+  journalSummaries,
+  selectedJournalDate,
+  journalEntry,
+  todayJournalEntry,
+  projects,
   selectedGoalId,
   selectedTaskId,
   onSelectGoal,
   onUpdateGoal,
+  onDeleteGoal,
   onSelectTask,
   onUpdateTask,
+  onDeleteTask,
+  onUpdateProject,
+  onDeleteProject,
+  onUpdateJournalEntry,
+  onSelectJournalDate,
   onTransformItem,
   onUpdateItemState,
   onDeleteItem,
@@ -38,6 +66,12 @@ export function PageContent({
     return (
       <section className="page page--dashboard" aria-label="Dashboard">
         <h1 className="home-greeting">{getGreetingForTime(new Date())}</h1>
+        {todayJournalEntry.morningIntention.trim() ? (
+          <article className="home-intention-card" aria-label="Today's intention">
+            <p className="home-intention-card__label">Today&apos;s intention</p>
+            <p className="home-intention-card__body">{todayJournalEntry.morningIntention}</p>
+          </article>
+        ) : null}
       </section>
     );
   }
@@ -60,9 +94,12 @@ export function PageContent({
     return (
       <GoalsPage
         items={items}
+        projects={projects}
+        todayDate={todayDate}
         selectedGoalId={selectedGoalId}
         onSelectGoal={onSelectGoal}
         onUpdateGoal={onUpdateGoal}
+        onDeleteGoal={onDeleteGoal}
       />
     );
   }
@@ -74,6 +111,32 @@ export function PageContent({
         selectedTaskId={selectedTaskId}
         onSelectTask={onSelectTask}
         onUpdateTask={onUpdateTask}
+        onDeleteTask={onDeleteTask}
+      />
+    );
+  }
+
+  if (activeView === "journaling") {
+    return (
+      <JournalingPage
+        todayDate={todayDate}
+        selectedDate={selectedJournalDate}
+        entry={journalEntry}
+        entries={journalSummaries}
+        items={items}
+        onSelectDate={onSelectJournalDate}
+        onUpdateEntry={onUpdateJournalEntry}
+      />
+    );
+  }
+
+  if (activeView === "projects") {
+    return (
+      <ProjectsPage
+        projects={projects}
+        items={items}
+        onUpdateProject={onUpdateProject}
+        onDeleteProject={onDeleteProject}
       />
     );
   }

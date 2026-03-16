@@ -8,8 +8,11 @@ export type ThemeTokens = {
     mainBg: string;
     panelBg: string;
     panelMuted: string;
+    surfaceElevated: string;
+    surfaceElevatedHover: string;
     borderSubtle: string;
     borderStrong: string;
+    borderCard: string;
     textPrimary: string;
     textSecondary: string;
     textMuted: string;
@@ -52,6 +55,9 @@ export const themeColorTokenOrder: ThemeColorToken[] = [
   "hoverBg",
   "panelBg",
   "panelMuted",
+  "surfaceElevated",
+  "surfaceElevatedHover",
+  "borderCard",
   "mainBg",
   "sidebarSurface",
   "sidebarBg",

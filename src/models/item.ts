@@ -8,11 +8,22 @@ export type TaskPriority = "low" | "medium" | "high" | "urgent" | "";
 
 export type GoalPeriod = "daily" | "weekly" | "monthly" | "yearly";
 
-export type GoalMetricType =
+export type GoalTrackingMode = "automatic" | "manual";
+
+export type GoalMetric =
   | "tasks_completed"
   | "inbox_items_processed"
   | "journal_entries_written"
-  | "notes_created";
+  | "notes_created"
+  | "manual_units";
+
+export type GoalScope = {
+  projectId?: string;
+  tag?: string;
+  taskIds?: string[];
+};
+
+export type GoalProgressByDate = Record<string, number>;
 
 export type Item = {
   id: string;
@@ -28,8 +39,13 @@ export type Item = {
   taskStatus: TaskStatus;
   priority: TaskPriority;
   dueDate: string;
+  completedAt?: string;
   estimate: string;
-  goalMetricType: GoalMetricType;
-  goalTargetValue: number;
+  goalMetric: GoalMetric;
+  goalTarget: number;
+  goalProgress?: number;
+  goalProgressByDate?: GoalProgressByDate;
   goalPeriod: GoalPeriod;
+  goalTrackingMode: GoalTrackingMode;
+  goalScope?: GoalScope;
 };

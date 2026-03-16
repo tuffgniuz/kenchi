@@ -11,6 +11,7 @@ type SettingsModalProps = {
     colors: {
       sidebarSurface: string;
       panelBg: string;
+      surfaceElevated: string;
       accent: string;
       textPrimary: string;
       textMuted: string;
@@ -170,7 +171,7 @@ export function SettingsModal({
                       />
                       <span
                         className="theme-card__swatch"
-                        style={{ backgroundColor: theme.colors.accent }}
+                        style={{ backgroundColor: theme.colors.surfaceElevated }}
                       />
                       <span
                         className="theme-card__swatch"

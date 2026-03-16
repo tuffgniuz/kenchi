@@ -74,20 +74,6 @@ export function BookOpenIcon({ className }: { className?: string }) {
   );
 }
 
-export function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <IconBase className={className}>
-      <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-      <path d="M7.5 3.5v3" />
-      <path d="M16.5 3.5v3" />
-      <path d="M3.5 9.5h17" />
-      <path d="M8 13h3" />
-      <path d="M13.5 13h2.5" />
-      <path d="M8 17h3" />
-    </IconBase>
-  );
-}
-
 export function BurgerIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
@@ -189,6 +175,52 @@ export function PlusIcon({ className }: { className?: string }) {
     <IconBase className={className}>
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </IconBase>
+  );
+}
+
+export function ArrowLeftIcon({ className }: { className?: string }) {
+  return (
+    <IconBase className={className}>
+      <path d="M19 12H5" />
+      <path d="m11 6-6 6 6 6" />
+    </IconBase>
+  );
+}
+
+export function ColumnsIcon({ className }: { className?: string }) {
+  return (
+    <IconBase className={className}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M8.5 4.5v15" />
+      <path d="M15.5 4.5v15" />
+    </IconBase>
+  );
+}
+
+export function FocusModeIcon({ className }: { className?: string }) {
+  return (
+    <IconBase className={className}>
+      <path d="M8 4.5H4.5V8" />
+      <path d="M16 4.5h3.5V8" />
+      <path d="M8 19.5H4.5V16" />
+      <path d="M16 19.5h3.5V16" />
+      <path d="M9 9 4.5 4.5" />
+      <path d="m15 9 4.5-4.5" />
+      <path d="m9 15-4.5 4.5" />
+      <path d="m15 15 4.5 4.5" />
+    </IconBase>
+  );
+}
+
+export function TrashIcon({ className }: { className?: string }) {
+  return (
+    <IconBase className={className}>
+      <path d="M5.5 7h13" />
+      <path d="M9 4.5h6" />
+      <path d="M8 7l.6 11a1.5 1.5 0 0 0 1.5 1.4h3.8a1.5 1.5 0 0 0 1.5-1.4L16 7" />
+      <path d="M10.5 10.5v5.5" />
+      <path d="M13.5 10.5v5.5" />
     </IconBase>
   );
 }

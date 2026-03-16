@@ -137,8 +137,6 @@ Kenchi will include the following product domains:
 * Built-in themes
 * Custom user-defined themes
 
-Calendar was mentioned earlier, but it is not one of the highest-priority core areas right now and should not be considered part of the first implementation scope unless it naturally fits later.
-
 ---
 
 ## 7. Functional Modules
@@ -632,8 +630,6 @@ Recommended top-level navigation:
 * Journal
 * Search
 
-Calendar may be introduced later if added.
-
 ### Layout
 
 Recommended layout:
@@ -812,7 +808,6 @@ To protect scope, the initial version should avoid:
 * real-time sync
 * enterprise project management complexity
 * complex permissions management for multiple users
-* advanced calendar integration
 * nested tag systems
 * plugin marketplace
 * theme editor UI
@@ -878,4 +873,3 @@ Kenchi is not:
 It should feel like a serious, extensible desktop tool for people who think and work through the keyboard.
 
 If you want, next I’ll turn this into a more formal **engineering spec with architecture, folder structure, module boundaries, and suggested data storage design for Tauri + React**.
-

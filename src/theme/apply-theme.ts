@@ -18,8 +18,11 @@ export function applyTheme(theme: ThemeTokens, options: ApplyThemeOptions = {}) 
   root.style.setProperty("--color-main-bg", theme.colors.mainBg);
   root.style.setProperty("--color-panel-bg", theme.colors.panelBg);
   root.style.setProperty("--color-panel-muted", theme.colors.panelMuted);
+  root.style.setProperty("--color-surface-elevated", theme.colors.surfaceElevated);
+  root.style.setProperty("--color-surface-elevated-hover", theme.colors.surfaceElevatedHover);
   root.style.setProperty("--color-border-subtle", theme.colors.borderSubtle);
   root.style.setProperty("--color-border-strong", theme.colors.borderStrong);
+  root.style.setProperty("--color-border-card", theme.colors.borderCard);
   root.style.setProperty("--color-text-primary", theme.colors.textPrimary);
   root.style.setProperty("--color-text-secondary", theme.colors.textSecondary);
   root.style.setProperty("--color-text-muted", theme.colors.textMuted);

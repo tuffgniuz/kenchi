@@ -11,19 +11,35 @@ import {
   SparkIcon,
 } from "../../app/icons";
 import {
-  newInboxItemSequence,
-  newGoalSequence,
-  newTaskSequence,
   navigationItems,
-  pageSequence,
   vaultPathStorageKey,
 } from "../../app/navigation";
+import {
+  leaderKey,
+  mappedSequences,
+  newGoalSequence,
+  newInboxItemSequence,
+  newProjectSequence,
+  newTaskSequence,
+  normalizeMappedKey,
+  pageSequence,
+  sequenceStartsWith,
+} from "../../app/keymappings";
 import type { ViewId } from "../../app/types";
 import { loadItems, saveItems } from "../../lib/storage/items";
+import {
+  listJournalEntries,
+  loadJournalEntry,
+  saveJournalEntry,
+} from "../../lib/storage/journal";
+import { loadProjects, saveProjects } from "../../lib/storage/projects";
 import { loadProfile, saveProfile } from "../../lib/storage/profile";
 import type { Item } from "../../models/item";
+import type { JournalEntry, JournalEntrySummary } from "../../models/journal";
+import type { Project } from "../../models/project";
 import type { UserProfile } from "../../models/profile";
 import { NewGoalModal } from "../goals/new-goal-modal";
+import { NewProjectModal } from "../projects/new-project-modal";
 import { useTheme } from "../../theme/theme-provider";
 import {
   formatThemeColorName,
@@ -51,10 +67,14 @@ const defaultItems: Item[] = [
     taskStatus: "today",
     priority: "high",
     dueDate: "2026-03-18",
+    completedAt: "",
     estimate: "45m",
-    goalMetricType: "tasks_completed",
-    goalTargetValue: 1,
+    goalMetric: "tasks_completed",
+    goalTarget: 1,
+    goalProgress: 0,
+    goalProgressByDate: {},
     goalPeriod: "weekly",
+    goalTrackingMode: "automatic",
   },
   {
     id: "item-goal-example-1",
@@ -70,10 +90,15 @@ const defaultItems: Item[] = [
     taskStatus: "inbox",
     priority: "",
     dueDate: "",
+    completedAt: "",
     estimate: "",
-    goalMetricType: "tasks_completed",
-    goalTargetValue: 3,
+    goalMetric: "tasks_completed",
+    goalTarget: 3,
+    goalProgress: 0,
+    goalProgressByDate: {},
     goalPeriod: "weekly",
+    goalTrackingMode: "automatic",
+    goalScope: undefined,
   },
 ];
 
@@ -81,6 +106,35 @@ const defaultProfile: UserProfile = {
   name: "User",
   profilePicture: "",
 };
+
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = `${today.getMonth() + 1}`.padStart(2, "0");
+  const day = `${today.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function createDefaultJournalEntry(date: string): JournalEntry {
+  return {
+    id: `journal-${date}`,
+    date,
+    morningIntention: "",
+    diaryEntry: "",
+    reflectionEntry: "",
+    focuses: [],
+    commitments: [],
+    reflection: {
+      wentWell: "",
+      didntGoWell: "",
+      learned: "",
+      gratitude: "",
+    },
+    createdAt: "today",
+    updatedAt: "today",
+  };
+}
 
 export function KenchiShell() {
   const {
@@ -110,6 +164,8 @@ export function KenchiShell() {
   const [pendingVaultPath, setPendingVaultPath] = useState(vaultPath);
   const [vaultError, setVaultError] = useState("");
   const [loadedItemVaultPath, setLoadedItemVaultPath] = useState("");
+  const [loadedJournalVaultPath, setLoadedJournalVaultPath] = useState("");
+  const [loadedProjectVaultPath, setLoadedProjectVaultPath] = useState("");
   const [loadedProfileVaultPath, setLoadedProfileVaultPath] = useState("");
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [pendingProfileName, setPendingProfileName] = useState(defaultProfile.name);
@@ -117,6 +173,16 @@ export function KenchiShell() {
     defaultProfile.profilePicture,
   );
   const [items, setItems] = useState<Item[]>(defaultItems);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [journalSummaries, setJournalSummaries] = useState<JournalEntrySummary[]>([]);
+  const todayDate = getTodayDateString();
+  const [selectedJournalDate, setSelectedJournalDate] = useState(todayDate);
+  const [journalEntry, setJournalEntry] = useState<JournalEntry>(() =>
+    createDefaultJournalEntry(todayDate),
+  );
+  const [todayJournalEntry, setTodayJournalEntry] = useState<JournalEntry>(() =>
+    createDefaultJournalEntry(todayDate),
+  );
   const [selectedGoalId, setSelectedGoalId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [toastMessage, setToastMessage] = useState("");
@@ -126,8 +192,12 @@ export function KenchiShell() {
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [newGoalOpen, setNewGoalOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const keySequenceRef = useRef<string[]>([]);
   const pendingCloseSequenceRef = useRef(false);
+  const keySequenceTimeoutRef = useRef<number | null>(null);
+  const itemMutationVersionRef = useRef(0);
+  const projectMutationVersionRef = useRef(0);
 
   const pageItems: CommandPaletteItem[] = navigationItems.map((item) => ({
     id: item.id,
@@ -169,6 +239,12 @@ export function KenchiShell() {
       icon: <SparkIcon className="nav-icon" />,
     },
     {
+      id: "new-project",
+      label: "New project",
+      keywords: ["np", "new", "project"],
+      icon: <SparkIcon className="nav-icon" />,
+    },
+    {
       id: "settings",
       label: "Settings",
       keywords: ["preferences", "theme", "config"],
@@ -176,9 +252,19 @@ export function KenchiShell() {
     },
   ];
 
+  function mutateItems(updater: (current: Item[]) => Item[]) {
+    itemMutationVersionRef.current += 1;
+    setItems(updater);
+  }
+
   function clearKeySequence() {
     keySequenceRef.current = [];
     pendingCloseSequenceRef.current = false;
+
+    if (keySequenceTimeoutRef.current) {
+      window.clearTimeout(keySequenceTimeoutRef.current);
+      keySequenceTimeoutRef.current = null;
+    }
   }
 
   useEffect(() => {
@@ -251,6 +337,13 @@ export function KenchiShell() {
         return;
       }
 
+      if (event.key === "Escape" && newProjectOpen) {
+        event.preventDefault();
+        setNewProjectOpen(false);
+        clearKeySequence();
+        return;
+      }
+
       if (
         pendingCloseSequenceRef.current &&
         event.key.toLowerCase() === "z" &&
@@ -298,30 +391,12 @@ export function KenchiShell() {
       }
 
       if (
-        event.key === " " &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey &&
-        !settingsOpen &&
-        !commandPaletteOpen &&
-        !commandLauncherOpen &&
-        !quickCaptureOpen &&
-        !newGoalOpen &&
-        !newTaskOpen &&
-        !isTypingTarget
-      ) {
-        event.preventDefault();
-        setCommandLauncherOpen(true);
-        clearKeySequence();
-        return;
-      }
-
-      if (
         commandPaletteOpen ||
         commandLauncherOpen ||
         quickCaptureOpen ||
         newGoalOpen ||
         newTaskOpen ||
+        newProjectOpen ||
         settingsOpen ||
         isTypingTarget
       ) {
@@ -344,8 +419,26 @@ export function KenchiShell() {
         return;
       }
 
-      const nextSequence = [...keySequenceRef.current, event.key.toLowerCase()].slice(-3);
+      const normalizedKey = normalizeMappedKey(event.key);
+
+      if (!keySequenceRef.current.length && normalizedKey !== leaderKey) {
+        return;
+      }
+
+      if (normalizedKey === leaderKey) {
+        event.preventDefault();
+      }
+
+      const nextSequence = [...keySequenceRef.current, normalizedKey].slice(-4);
       keySequenceRef.current = nextSequence;
+
+      if (keySequenceTimeoutRef.current) {
+        window.clearTimeout(keySequenceTimeoutRef.current);
+      }
+
+      keySequenceTimeoutRef.current = window.setTimeout(() => {
+        clearKeySequence();
+      }, 1200);
 
       if (nextSequence.join("") === pageSequence.join("")) {
         event.preventDefault();
@@ -372,6 +465,22 @@ export function KenchiShell() {
         event.preventDefault();
         setNewTaskOpen(true);
         clearKeySequence();
+        return;
+      }
+
+      if (nextSequence.join("") === newProjectSequence.join("")) {
+        event.preventDefault();
+        setNewProjectOpen(true);
+        clearKeySequence();
+        return;
+      }
+
+      const isKnownPrefix = mappedSequences.some((sequence) =>
+        sequenceStartsWith(sequence, nextSequence),
+      );
+
+      if (!isKnownPrefix) {
+        clearKeySequence();
       }
     }
 
@@ -385,6 +494,7 @@ export function KenchiShell() {
     commandLauncherOpen,
     commandPaletteOpen,
     newGoalOpen,
+    newProjectOpen,
     newTaskOpen,
     quickCaptureOpen,
     selectedGoalId,
@@ -424,6 +534,7 @@ export function KenchiShell() {
 
   useEffect(() => {
     let cancelled = false;
+    const initialItemMutationVersion = itemMutationVersionRef.current;
 
     if (!vaultPath) {
       setItems(defaultItems);
@@ -434,7 +545,9 @@ export function KenchiShell() {
     void loadItems(vaultPath)
       .then((loadedItems) => {
         if (!cancelled) {
-          setItems(loadedItems.length > 0 ? loadedItems : defaultItems);
+          if (itemMutationVersionRef.current === initialItemMutationVersion) {
+            setItems(loadedItems.length > 0 ? loadedItems : defaultItems);
+          }
           setLoadedItemVaultPath(vaultPath);
         }
       })
@@ -449,6 +562,126 @@ export function KenchiShell() {
       cancelled = true;
     };
   }, [vaultPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const initialProjectMutationVersion = projectMutationVersionRef.current;
+
+    if (!vaultPath) {
+      setProjects([]);
+      setLoadedProjectVaultPath("");
+      return;
+    }
+
+    void loadProjects(vaultPath)
+      .then((loadedProjects) => {
+        if (!cancelled) {
+          if (projectMutationVersionRef.current === initialProjectMutationVersion) {
+            setProjects(loadedProjects);
+          }
+          setLoadedProjectVaultPath(vaultPath);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjects([]);
+          setLoadedProjectVaultPath(vaultPath);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!vaultPath) {
+      setJournalEntry(createDefaultJournalEntry(selectedJournalDate));
+      setTodayJournalEntry(createDefaultJournalEntry(todayDate));
+      setLoadedJournalVaultPath("");
+      setJournalSummaries([]);
+      return;
+    }
+
+    void loadJournalEntry(vaultPath, selectedJournalDate)
+      .then((loadedEntry) => {
+        if (cancelled) {
+          return;
+        }
+
+        setJournalEntry(loadedEntry ?? createDefaultJournalEntry(selectedJournalDate));
+        setLoadedJournalVaultPath(vaultPath);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+
+        setJournalEntry(createDefaultJournalEntry(selectedJournalDate));
+        setLoadedJournalVaultPath(vaultPath);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedJournalDate, vaultPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!vaultPath) {
+      setTodayJournalEntry(createDefaultJournalEntry(todayDate));
+      return;
+    }
+
+    if (selectedJournalDate === todayDate) {
+      setTodayJournalEntry(journalEntry);
+      return;
+    }
+
+    void loadJournalEntry(vaultPath, todayDate)
+      .then((loadedEntry) => {
+        if (!cancelled) {
+          setTodayJournalEntry(loadedEntry ?? createDefaultJournalEntry(todayDate));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTodayJournalEntry(createDefaultJournalEntry(todayDate));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [journalEntry, selectedJournalDate, todayDate, vaultPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!vaultPath) {
+      setJournalSummaries([]);
+      return;
+    }
+
+    void listJournalEntries(vaultPath)
+      .then((summaries) => {
+        if (!cancelled) {
+          setJournalSummaries(summaries);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJournalSummaries([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [journalEntry.updatedAt, vaultPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -506,6 +739,31 @@ export function KenchiShell() {
 
     void saveProfile(vaultPath, profile);
   }, [loadedProfileVaultPath, profile, vaultPath]);
+
+  useEffect(() => {
+    if (!vaultPath || loadedProjectVaultPath !== vaultPath) {
+      return;
+    }
+
+    void saveProjects(vaultPath, projects)
+      .then(() => {
+        if (pendingCreateToast) {
+          setToastMessage(pendingCreateToast);
+          setPendingCreateToast("");
+        }
+      })
+      .catch(() => {
+        setPendingCreateToast("");
+      });
+  }, [loadedProjectVaultPath, pendingCreateToast, projects, vaultPath]);
+
+  useEffect(() => {
+    if (!vaultPath || loadedJournalVaultPath !== vaultPath) {
+      return;
+    }
+
+    void saveJournalEntry(vaultPath, journalEntry);
+  }, [journalEntry, loadedJournalVaultPath, vaultPath]);
 
   function navigateToPage(view: ViewId) {
     setActiveView(view);
@@ -600,7 +858,7 @@ export function KenchiShell() {
       return;
     }
 
-    setItems((current) => [
+    mutateItems((current) => [
       {
         id: `item-${Date.now()}`,
         kind: "capture",
@@ -615,10 +873,14 @@ export function KenchiShell() {
         taskStatus: "inbox",
         priority: "",
         dueDate: "",
+        completedAt: "",
         estimate: "",
-        goalMetricType: "tasks_completed",
-        goalTargetValue: 1,
+        goalMetric: "tasks_completed",
+        goalTarget: 1,
+        goalProgress: 0,
+        goalProgressByDate: {},
         goalPeriod: "weekly",
+        goalTrackingMode: "automatic",
       },
       ...current,
     ]);
@@ -626,7 +888,10 @@ export function KenchiShell() {
     setQuickCaptureOpen(false);
   }
 
-  function handleCreateTask(task: { title: string; description: string }) {
+  function handleCreateTask(task: { title: string; description: string; projectId: string }) {
+    const projectName = task.projectId
+      ? projects.find((project) => project.id === task.projectId)?.name ?? ""
+      : "";
     const nextTask: Item = {
       id: `item-${Date.now()}`,
       kind: "task",
@@ -637,17 +902,21 @@ export function KenchiShell() {
       createdAt: "just now",
       updatedAt: "just now",
       tags: [],
-      project: "",
+      project: projectName,
       taskStatus: "inbox",
       priority: "",
       dueDate: "",
+      completedAt: "",
       estimate: "",
-      goalMetricType: "tasks_completed",
-      goalTargetValue: 1,
+      goalMetric: "tasks_completed",
+      goalTarget: 1,
+      goalProgress: 0,
+      goalProgressByDate: {},
       goalPeriod: "weekly",
+      goalTrackingMode: "automatic",
     };
 
-    setItems((current) => [nextTask, ...current]);
+    mutateItems((current) => [nextTask, ...current]);
     setPendingCreateToast("Task saved to vault.");
     setSelectedTaskId(nextTask.id);
     setNewTaskOpen(false);
@@ -657,11 +926,11 @@ export function KenchiShell() {
   function handleCreateGoal(goal: {
     title: string;
     description: string;
-    targetValue: number;
+    target: number;
     period: Item["goalPeriod"];
-    metricType: Item["goalMetricType"];
-    project: string;
-    tagFilter: string;
+    trackingMode: Item["goalTrackingMode"];
+    metric: Item["goalMetric"];
+    projectId: string;
   }) {
     const nextGoal: Item = {
       id: `item-${Date.now()}`,
@@ -672,36 +941,120 @@ export function KenchiShell() {
       content: goal.description,
       createdAt: "just now",
       updatedAt: "just now",
-      tags: goal.tagFilter ? [goal.tagFilter.replace(/^#/, "")] : [],
-      project: goal.project,
+      tags: [],
+      project: "",
       taskStatus: "inbox",
       priority: "",
       dueDate: "",
+      completedAt: "",
       estimate: "",
-      goalMetricType: goal.metricType,
-      goalTargetValue: goal.targetValue,
+      goalMetric: goal.metric,
+      goalTarget: goal.target,
+      goalProgress: 0,
+      goalProgressByDate: {},
       goalPeriod: goal.period,
+      goalTrackingMode: goal.trackingMode,
+      goalScope: goal.projectId ? { projectId: goal.projectId } : undefined,
     };
 
-    setItems((current) => [nextGoal, ...current]);
+    mutateItems((current) => [nextGoal, ...current]);
     setPendingCreateToast("Goal saved to vault.");
     setSelectedGoalId(nextGoal.id);
     setNewGoalOpen(false);
     setActiveView("goals");
   }
 
+  function handleCreateProject(project: { name: string; description: string }) {
+    const timestamp = new Date().toISOString();
+    const nextProject: Project = {
+      id: `project-${Date.now()}`,
+      name: project.name,
+      description: project.description,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    projectMutationVersionRef.current += 1;
+    setProjects((current) => [nextProject, ...current]);
+    setPendingCreateToast("Project saved to vault.");
+    setNewProjectOpen(false);
+    setActiveView("projects");
+  }
+
+  function handleUpdateProject(projectId: string, updates: Partial<Project>) {
+    projectMutationVersionRef.current += 1;
+
+    setProjects((current) => {
+      const existingProject = current.find((project) => project.id === projectId);
+
+      if (!existingProject) {
+        return current;
+      }
+
+      const nextName = typeof updates.name === "string" ? updates.name.trim() : existingProject.name;
+      const nextDescription =
+        typeof updates.description === "string"
+          ? updates.description.trim()
+          : existingProject.description;
+      const timestamp = new Date().toISOString();
+
+      if (
+        nextName === existingProject.name &&
+        nextDescription === existingProject.description
+      ) {
+        return current;
+      }
+
+      if (nextName !== existingProject.name) {
+        mutateItems((itemsCurrent) =>
+          itemsCurrent.map((item) =>
+            item.project === existingProject.name
+              ? { ...item, project: nextName, updatedAt: timestamp }
+              : item,
+          ),
+        );
+      }
+
+      return current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              name: nextName,
+              description: nextDescription,
+              updatedAt: timestamp,
+            }
+          : project,
+      );
+    });
+  }
+
+  function handleDeleteProject(projectId: string) {
+    projectMutationVersionRef.current += 1;
+    setProjects((current) => current.filter((project) => project.id !== projectId));
+  }
+
   function handleUpdateTask(taskId: string, updates: Partial<Item>) {
-    setItems((current) =>
+    mutateItems((current) =>
       current.map((item) =>
         item.id === taskId
-          ? { ...item, ...updates, updatedAt: "just now" }
+          ? {
+              ...item,
+              ...updates,
+              completedAt:
+                updates.taskStatus === "done"
+                  ? todayDate
+                  : typeof updates.taskStatus !== "undefined"
+                    ? ""
+                    : item.completedAt,
+              updatedAt: "just now",
+            }
           : item,
       ),
     );
   }
 
   function handleUpdateGoal(goalId: string, updates: Partial<Item>) {
-    setItems((current) =>
+    mutateItems((current) =>
       current.map((item) =>
         item.id === goalId
           ? {
@@ -718,8 +1071,16 @@ export function KenchiShell() {
     );
   }
 
+  function handleUpdateJournalEntry(updates: Partial<JournalEntry>) {
+    setJournalEntry((current) => ({
+      ...current,
+      ...updates,
+      updatedAt: "just now",
+    }));
+  }
+
   function handleTransformItem(itemId: string, kind: Item["kind"]) {
-    setItems((current) =>
+    mutateItems((current) =>
       current.map((item) =>
         item.id === itemId
           ? {
@@ -746,7 +1107,7 @@ export function KenchiShell() {
   }
 
   function handleUpdateItemState(itemId: string, state: Item["state"]) {
-    setItems((current) =>
+    mutateItems((current) =>
       current.map((item) =>
         item.id === itemId ? { ...item, state, updatedAt: "just now" } : item,
       ),
@@ -754,7 +1115,9 @@ export function KenchiShell() {
   }
 
   function handleDeleteItem(itemId: string) {
-    setItems((current) => current.filter((item) => item.id !== itemId));
+    mutateItems((current) => current.filter((item) => item.id !== itemId));
+    setSelectedTaskId((current) => (current === itemId ? "" : current));
+    setSelectedGoalId((current) => (current === itemId ? "" : current));
   }
 
   function handleSelectCommand(item: CommandPaletteItem) {
@@ -780,6 +1143,11 @@ export function KenchiShell() {
       return;
     }
 
+    if (item.id === "new-project") {
+      setNewProjectOpen(true);
+      return;
+    }
+
     if (item.id === "settings") {
       openSettings();
     }
@@ -789,91 +1157,82 @@ export function KenchiShell() {
     <>
       <div className="app-shell">
         <aside className={`sidebar ${sidebarExpanded ? "is-expanded" : "is-collapsed"}`}>
-          {sidebarExpanded ? (
-            <>
-              <div className="sidebar__header">
-                <button
-                  type="button"
-                  className="sidebar__brand"
-                  onClick={() => navigateToPage("dashboard")}
-                  aria-label="Open dashboard"
-                >
-                  <span className="sidebar__avatar" aria-hidden="true">
-                    {profile.profilePicture ? (
-                      <img
-                        src={profile.profilePicture}
-                        alt=""
-                        className="sidebar__avatar-image"
-                      />
-                    ) : (
-                      (profile.name.trim() || defaultProfile.name).slice(0, 1).toUpperCase()
-                    )}
-                  </span>
-                  <span className="sidebar__brand-copy">
-                    <span className="sidebar__brand-name">
-                      {(profile.name.trim() || defaultProfile.name).replace(/'$/, "")}
-                      &apos;s Kenchi
-                    </span>
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar__toggle"
-                  onClick={() => setSidebarExpanded((current) => !current)}
-                  aria-label={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-                  aria-pressed={sidebarExpanded}
-                >
-                  <CollapseSidebarIcon className="nav-icon" />
-                </button>
-              </div>
-
-              <div className="sidebar__section sidebar__section--primary">
-                <nav className="nav-list" aria-label="Primary navigation">
-                  {navigationItems.map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`nav-button ${activeView === item.id ? "is-active" : ""}`}
-                        onClick={() => navigateToPage(item.id)}
-                        aria-label={item.label}
-                        title={item.label}
-                      >
-                        <Icon className="nav-icon" />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              <div className="sidebar__section sidebar__section--settings">
-                <button
-                  type="button"
-                  className="nav-button"
-                  onClick={openSettings}
-                  aria-label="Settings"
-                  title="Settings"
-                >
-                  <SettingsIcon className="nav-icon" />
-                  <span>Settings</span>
-                </button>
-              </div>
-            </>
-          ) : (
+          <div className="sidebar__header">
             <button
               type="button"
-              className="sidebar__toggle sidebar__toggle--floating"
+              className="sidebar__brand"
+              onClick={() => navigateToPage("dashboard")}
+              aria-label="Open dashboard"
+              title="Dashboard"
+            >
+              <span className="sidebar__avatar" aria-hidden="true">
+                {profile.profilePicture ? (
+                  <img
+                    src={profile.profilePicture}
+                    alt=""
+                    className="sidebar__avatar-image"
+                  />
+                ) : (
+                  (profile.name.trim() || defaultProfile.name).slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <span className="sidebar__brand-copy">
+                <span className="sidebar__brand-name">
+                  {(profile.name.trim() || defaultProfile.name).replace(/'$/, "")}
+                  &apos;s Kenchi
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="sidebar__toggle"
               onClick={() => setSidebarExpanded((current) => !current)}
               aria-label={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
               aria-pressed={sidebarExpanded}
             >
-              <BurgerIcon className="nav-icon" />
+              {sidebarExpanded ? (
+                <CollapseSidebarIcon className="nav-icon" />
+              ) : (
+                <BurgerIcon className="nav-icon" />
+              )}
             </button>
-          )}
+          </div>
+
+          <div className="sidebar__section sidebar__section--primary">
+            <nav className="nav-list" aria-label="Primary navigation">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`nav-button ${activeView === item.id ? "is-active" : ""}`}
+                    onClick={() => navigateToPage(item.id)}
+                    aria-label={item.label}
+                    title={item.label}
+                  >
+                    <Icon className="nav-icon" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="sidebar__section sidebar__section--settings">
+            <button
+              type="button"
+              className="nav-button"
+              onClick={openSettings}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <SettingsIcon className="nav-icon" />
+              <span>Settings</span>
+            </button>
+          </div>
         </aside>
 
         <main className="main-panel">
@@ -881,12 +1240,24 @@ export function KenchiShell() {
             <PageContent
               activeView={activeView}
               items={items}
+              todayDate={todayDate}
+              journalSummaries={journalSummaries}
+              selectedJournalDate={selectedJournalDate}
+              journalEntry={journalEntry}
+              todayJournalEntry={todayJournalEntry}
+              projects={projects}
               selectedGoalId={selectedGoalId}
               selectedTaskId={selectedTaskId}
               onSelectGoal={setSelectedGoalId}
               onUpdateGoal={handleUpdateGoal}
+              onDeleteGoal={handleDeleteItem}
               onSelectTask={setSelectedTaskId}
               onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteItem}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+              onUpdateJournalEntry={handleUpdateJournalEntry}
+              onSelectJournalDate={setSelectedJournalDate}
               onTransformItem={handleTransformItem}
               onUpdateItemState={handleUpdateItemState}
               onDeleteItem={handleDeleteItem}
@@ -960,13 +1331,21 @@ export function KenchiShell() {
       <NewTaskModal
         isOpen={newTaskOpen}
         onClose={() => setNewTaskOpen(false)}
+        projects={projects}
         onSubmit={handleCreateTask}
       />
 
       <NewGoalModal
         isOpen={newGoalOpen}
         onClose={() => setNewGoalOpen(false)}
+        projects={projects}
         onSubmit={handleCreateGoal}
+      />
+
+      <NewProjectModal
+        isOpen={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
+        onSubmit={handleCreateProject}
       />
     </>
   );

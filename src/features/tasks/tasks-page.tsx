@@ -3,6 +3,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
 import { Vim, vim } from "@replit/codemirror-vim";
+import { FloatingPanel } from "../../components/floating-panel";
 import type { Item, TaskStatus } from "../../models/item";
 
 type TasksPageProps = {
@@ -10,6 +11,7 @@ type TasksPageProps = {
   selectedTaskId: string;
   onSelectTask: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: Partial<Item>) => void;
+  onDeleteTask: (taskId: string) => void;
 };
 
 const filterItems: Array<{ id: TaskStatus | "all"; label: string }> = [
@@ -40,8 +42,13 @@ export function TasksPage({
   selectedTaskId,
   onSelectTask,
   onUpdateTask,
+  onDeleteTask,
 }: TasksPageProps) {
   const [activeFilter, setActiveFilter] = useState<TaskStatus | "all">("all");
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const selectedTask =
     items.find((item) => item.id === selectedTaskId && item.kind === "task") ?? null;
 
@@ -99,6 +106,7 @@ export function TasksPage({
                   <th scope="col">Priority</th>
                   <th scope="col">Due</th>
                   <th scope="col">Project</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,6 +126,20 @@ export function TasksPage({
                     <td>{row.priority}</td>
                     <td>{row.due}</td>
                     <td>{row.project}</td>
+                    <td
+                      className="tasks-table__actions-cell"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="tasks-item__actions" aria-label="Task actions">
+                        <button
+                          type="button"
+                          className="inbox-action"
+                          onClick={() => setPendingDeleteTask({ id: row.id, title: row.title })}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -151,10 +173,63 @@ export function TasksPage({
         </div>
       ) : (
         <div className="tasks-empty">
+          <div className="tasks-empty__art" aria-hidden="true">
+            <svg viewBox="0 0 180 180" className="tasks-empty__svg">
+              <defs>
+                <linearGradient id="tasks-empty-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.9" />
+                  <stop offset="100%" stopColor="var(--color-focus-ring)" stopOpacity="0.75" />
+                </linearGradient>
+              </defs>
+              <circle
+                cx="90"
+                cy="90"
+                r="68"
+                fill="url(#tasks-empty-gradient)"
+                opacity="0.12"
+              />
+              <rect
+                x="48"
+                y="54"
+                width="84"
+                height="72"
+                rx="14"
+                fill="none"
+                stroke="var(--color-border-strong)"
+                strokeWidth="4"
+              />
+              <path
+                d="M66 76h48M66 92h36M66 108h24"
+                fill="none"
+                stroke="var(--color-text-secondary)"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+              <circle cx="132" cy="56" r="12" fill="var(--color-panel-bg)" />
+              <path
+                d="M132 50v12M126 56h12"
+                fill="none"
+                stroke="var(--color-accent)"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
           <p className="tasks-empty__title">No tasks match this view</p>
-          <p className="tasks-empty__copy">Change the filter to see more tasks.</p>
+          <p className="tasks-empty__copy">Change the filter to bring tasks back into focus.</p>
         </div>
       )}
+
+      {pendingDeleteTask ? (
+        <TaskDeleteConfirmModal
+          taskTitle={pendingDeleteTask.title}
+          onClose={() => setPendingDeleteTask(null)}
+          onConfirm={() => {
+            onDeleteTask(pendingDeleteTask.id);
+            setPendingDeleteTask(null);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
@@ -244,5 +319,43 @@ function TaskDescriptionEditor({
         onChange={onChange}
       />
     </div>
+  );
+}
+
+function TaskDeleteConfirmModal({
+  taskTitle,
+  onClose,
+  onConfirm,
+}: {
+  taskTitle: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <FloatingPanel
+      ariaLabelledBy="task-delete-confirm-title"
+      className="inbox-confirm"
+      onClose={onClose}
+    >
+      <div className="inbox-confirm__content">
+        <p id="task-delete-confirm-title" className="new-task__title">
+          Delete task
+        </p>
+        <p className="inbox-confirm__item">{taskTitle}</p>
+        <p className="inbox-confirm__copy">This will permanently remove the task.</p>
+        <div className="inbox-confirm__actions">
+          <button type="button" className="inbox-confirm__button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="inbox-confirm__button inbox-confirm__button--confirm"
+            onClick={onConfirm}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </FloatingPanel>
   );
 }
