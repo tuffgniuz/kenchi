@@ -6,7 +6,7 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tuffgniuz/kenchi?style=for-the-badge&labelColor=%23181926&color=%23a6da95)
 
 ## Summary
-Kenchi is a keyboard-first, local-first desktop knowledge and productivity system built with Tauri and React that combines markdown notes, tasks, projects, goals, journaling, and quick capture into a unified, extensible workflow.
+Kenchi is an opinionated, keyboard-first, local-first desktop system for independent work. It is designed for people who need help turning scattered thoughts, intrusive ideas, goals, and intentions into a clear daily workflow through quick capture, task management, lightweight projects, measurable goals, and reflective journaling.
 </div>
 
 ## Current Scope
