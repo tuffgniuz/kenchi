@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { CommandPalette } from "../../components/command-palette";
 import type { CommandPaletteItem } from "../../components/command-palette";
 import {
@@ -16,26 +15,24 @@ import {
   vaultPathStorageKey,
 } from "../../app/navigation";
 import {
-  leaderKey,
-  listProjectsSequence,
-  mappedSequences,
-  newGoalSequence,
-  newInboxItemSequence,
-  newProjectSequence,
-  newTaskSequence,
-  normalizeMappedKey,
-  pageSequence,
-  sequenceStartsWith,
+  leaderKey, listGoalsSequence, listInboxItemsSequence, listProjectsSequence,
+  listTasksSequence, mappedSequences, newGoalSequence, newInboxItemSequence,
+  newProjectSequence, newTaskSequence, normalizeMappedKey, pageSequence, sequenceStartsWith,
 } from "../../app/keymappings";
 import type { ViewId } from "../../app/types";
-import { loadItems, saveItems } from "../../lib/storage/items";
 import {
   listJournalEntries,
   loadJournalEntry,
   saveJournalEntry,
-} from "../../lib/storage/journal";
-import { loadProjects, saveProjects } from "../../lib/storage/projects";
-import { loadProfile, saveProfile } from "../../lib/storage/profile";
+} from "../../services/journal";
+import { loadProfile, saveProfile } from "../../services/profile";
+import { loadProjects, saveProjects } from "../../services/projects";
+import { loadWorkspaceItems, replaceWorkspaceItems } from "../../services/workspace";
+import { initializeVault } from "../../services/vault";
+import {
+  getInitialVaultPath,
+  shouldAutoInitializeDevelopmentVault,
+} from "./vault-path";
 import {
   attachProjectIdsFromNames,
   clearProjectReferences,
@@ -45,7 +42,7 @@ import {
   applyJournalEntryUpdates,
   upsertJournalSummary,
 } from "../../lib/domain/journal-entry-state";
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { JournalEntry, JournalEntrySummary } from "../../models/journal";
 import type { Project } from "../../models/project";
 import type { UserProfile } from "../../models/profile";
@@ -75,7 +72,7 @@ const defaultItems: Item[] = [
     updatedAt: "today",
     tags: ["ui", "planning"],
     project: "Kenchi",
-    taskStatus: "today",
+    isCompleted: false,
     priority: "high",
     dueDate: "2026-03-18",
     completedAt: "",
@@ -85,7 +82,6 @@ const defaultItems: Item[] = [
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
   },
   {
     id: "item-goal-example-1",
@@ -98,7 +94,7 @@ const defaultItems: Item[] = [
     updatedAt: "today",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -108,7 +104,6 @@ const defaultItems: Item[] = [
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     goalScope: undefined,
   },
 ];
@@ -125,6 +120,17 @@ function getTodayDateString() {
   const day = `${today.getDate()}`.padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function formatPersistenceError(context: string, error: unknown) {
+  const detail =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Unknown error";
+
+  return `Failed to ${context}: ${detail}`;
 }
 
 function createDefaultJournalEntry(date: string): JournalEntry {
@@ -179,6 +185,8 @@ function createDefaultJournalSummaries(todayDate: string): JournalEntrySummary[]
   ];
 }
 
+type ListPaletteKind = "projects" | "tasks" | "goals" | "inbox";
+
 export function KenchiShell() {
   const {
     activeThemeId,
@@ -202,7 +210,10 @@ export function KenchiShell() {
       return "";
     }
 
-    return window.localStorage.getItem(vaultPathStorageKey) ?? "";
+    return getInitialVaultPath(
+      window.localStorage.getItem(vaultPathStorageKey),
+      import.meta.env.DEV,
+    );
   });
   const [pendingVaultPath, setPendingVaultPath] = useState(vaultPath);
   const [vaultError, setVaultError] = useState("");
@@ -232,13 +243,14 @@ export function KenchiShell() {
   const [selectedGoalId, setSelectedGoalId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [toastMessage, setToastMessage] = useState("");
-  const [pendingCreateToast, setPendingCreateToast] = useState("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [projectPaletteOpen, setProjectPaletteOpen] = useState(false);
+  const [listPaletteKind, setListPaletteKind] = useState<ListPaletteKind | null>(null);
   const [commandLauncherOpen, setCommandLauncherOpen] = useState(false);
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [newGoalOpen, setNewGoalOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState("");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskGoalId, setNewTaskGoalId] = useState("");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const keySequenceRef = useRef<string[]>([]);
   const pendingCloseSequenceRef = useRef(false);
@@ -258,6 +270,32 @@ export function KenchiShell() {
     keywords: [project.description.toLowerCase(), "project"],
     icon: <LayersIcon className="nav-icon" />,
   }));
+  const taskItems: CommandPaletteItem[] = items
+    .filter((item) => item.kind === "task" && item.state !== "deleted")
+    .map((item) => ({
+      id: item.id,
+      label: item.title,
+      keywords: [item.content.toLowerCase(), item.project.toLowerCase(), "task"],
+      icon: <SparkIcon className="nav-icon" />,
+    }));
+  const goalItems: CommandPaletteItem[] = items
+    .filter((item) => item.kind === "goal" && item.state !== "deleted")
+    .map((item) => ({
+      id: item.id,
+      label: item.title,
+      keywords: [item.content.toLowerCase(), item.goalMetric?.replace(/_/g, " ") ?? "direct", "goal"],
+      icon: <SparkIcon className="nav-icon" />,
+    }));
+  const inboxItems: CommandPaletteItem[] = items
+    .filter(
+      (item) => item.kind === "capture" && item.sourceType === "capture" && item.state !== "deleted",
+    )
+    .map((item) => ({
+      id: item.id,
+      label: item.content || item.title,
+      keywords: [item.title.toLowerCase(), item.state, "inbox", "capture"],
+      icon: <SparkIcon className="nav-icon" />,
+    }));
   const pendingTheme = themes.find((theme) => theme.id === pendingThemeId) ?? themes[0];
   const accentOptions = Object.entries(pendingTheme.colors).map(([token, color]) => ({
     id: token as ThemeColorToken,
@@ -265,6 +303,37 @@ export function KenchiShell() {
     tokenLabel: formatThemeColorToken(token as ThemeColorToken),
     color,
   }));
+
+  const listPaletteConfig =
+    listPaletteKind === "projects"
+      ? {
+          title: "Projects",
+          placeholder: "list projects",
+          emptyMessage: "No projects match that query.",
+          items: projectItems,
+        }
+      : listPaletteKind === "tasks"
+        ? {
+            title: "Tasks",
+            placeholder: "list tasks",
+            emptyMessage: "No tasks match that query.",
+            items: taskItems,
+          }
+        : listPaletteKind === "goals"
+          ? {
+              title: "Goals",
+              placeholder: "list goals",
+              emptyMessage: "No goals match that query.",
+              items: goalItems,
+            }
+          : listPaletteKind === "inbox"
+            ? {
+                title: "Inbox",
+                placeholder: "list inbox items",
+                emptyMessage: "No inbox items match that query.",
+                items: inboxItems,
+              }
+            : null;
 
   const commandItems: CommandPaletteItem[] = [
     {
@@ -305,9 +374,80 @@ export function KenchiShell() {
     },
   ];
 
-  function mutateItems(updater: (current: Item[]) => Item[]) {
-    itemMutationVersionRef.current += 1;
-    setItems(updater);
+  async function mutateItems(
+    updater: (current: Item[]) => Item[],
+    options?: {
+      successMessage?: string;
+      onSuccess?: (nextItems: Item[]) => void;
+      onFailure?: () => void;
+    },
+  ) {
+    if (!vaultPath || loadedItemVaultPath !== vaultPath) {
+      setToastMessage("Failed to save workspace changes: vault is not ready");
+      options?.onFailure?.();
+      return false;
+    }
+
+    const nextItems = updater(items);
+
+    if (nextItems === items) {
+      return false;
+    }
+
+    try {
+      await replaceWorkspaceItems(vaultPath, nextItems);
+      itemMutationVersionRef.current += 1;
+      setItems(nextItems);
+
+      if (options?.successMessage) {
+        setToastMessage(options.successMessage);
+      }
+
+      options?.onSuccess?.(nextItems);
+      return true;
+    } catch (error) {
+      setToastMessage(formatPersistenceError("save workspace changes", error));
+      options?.onFailure?.();
+      return false;
+    }
+  }
+
+  async function mutateProjects(
+    updater: (current: Project[]) => Project[],
+    options?: {
+      successMessage?: string;
+      onSuccess?: (nextProjects: Project[]) => void;
+      onFailure?: () => void;
+    },
+  ) {
+    if (!vaultPath || loadedProjectVaultPath !== vaultPath) {
+      setToastMessage("Failed to save projects: vault is not ready");
+      options?.onFailure?.();
+      return false;
+    }
+
+    const nextProjects = updater(projects);
+
+    if (nextProjects === projects) {
+      return false;
+    }
+
+    try {
+      await saveProjects(vaultPath, nextProjects);
+      projectMutationVersionRef.current += 1;
+      setProjects(nextProjects);
+
+      if (options?.successMessage) {
+        setToastMessage(options.successMessage);
+      }
+
+      options?.onSuccess?.(nextProjects);
+      return true;
+    } catch (error) {
+      setToastMessage(formatPersistenceError("save projects", error));
+      options?.onFailure?.();
+      return false;
+    }
   }
 
   function clearKeySequence() {
@@ -382,9 +522,9 @@ export function KenchiShell() {
         return;
       }
 
-      if (event.key === "Escape" && projectPaletteOpen) {
+      if (event.key === "Escape" && listPaletteKind) {
         event.preventDefault();
-        setProjectPaletteOpen(false);
+        setListPaletteKind(null);
         clearKeySequence();
         return;
       }
@@ -399,6 +539,7 @@ export function KenchiShell() {
       if (event.key === "Escape" && newGoalOpen) {
         event.preventDefault();
         setNewGoalOpen(false);
+        setEditingGoalId("");
         clearKeySequence();
         return;
       }
@@ -465,7 +606,7 @@ export function KenchiShell() {
 
       if (
         commandPaletteOpen ||
-        projectPaletteOpen ||
+        listPaletteKind !== null ||
         commandLauncherOpen ||
         quickCaptureOpen ||
         newGoalOpen ||
@@ -523,11 +664,28 @@ export function KenchiShell() {
 
       if (nextSequence.join("") === listProjectsSequence.join("")) {
         event.preventDefault();
-        if (projects.length > 0) {
-          setProjectPaletteOpen(true);
-        } else {
-          setToastMessage("No projects yet.");
-        }
+        openListPalette("projects");
+        clearKeySequence();
+        return;
+      }
+
+      if (nextSequence.join("") === listTasksSequence.join("")) {
+        event.preventDefault();
+        openListPalette("tasks");
+        clearKeySequence();
+        return;
+      }
+
+      if (nextSequence.join("") === listGoalsSequence.join("")) {
+        event.preventDefault();
+        openListPalette("goals");
+        clearKeySequence();
+        return;
+      }
+
+      if (nextSequence.join("") === listInboxItemsSequence.join("")) {
+        event.preventDefault();
+        openListPalette("inbox");
         clearKeySequence();
         return;
       }
@@ -541,6 +699,7 @@ export function KenchiShell() {
 
       if (nextSequence.join("") === newGoalSequence.join("")) {
         event.preventDefault();
+        setEditingGoalId("");
         setNewGoalOpen(true);
         clearKeySequence();
         return;
@@ -578,7 +737,7 @@ export function KenchiShell() {
     activeView,
     commandLauncherOpen,
     commandPaletteOpen,
-    projectPaletteOpen,
+    listPaletteKind,
     newGoalOpen,
     newProjectOpen,
     newTaskOpen,
@@ -610,6 +769,28 @@ export function KenchiShell() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedVaultPath = window.localStorage.getItem(vaultPathStorageKey);
+
+    if (!shouldAutoInitializeDevelopmentVault(storedVaultPath, import.meta.env.DEV)) {
+      return;
+    }
+
+    void initializeVault(vaultPath)
+      .then((initializedVaultPath) => {
+        setVaultPath(initializedVaultPath);
+        setPendingVaultPath(initializedVaultPath);
+        window.localStorage.setItem(vaultPathStorageKey, initializedVaultPath);
+      })
+      .catch(() => {
+        // Leave the development default unpersisted if initialization fails.
+      });
+  }, [vaultPath]);
+
+  useEffect(() => {
     if (!settingsOpen) {
       setPendingThemeId(activeThemeId);
       setPendingAccentToken(activeAccentToken);
@@ -629,7 +810,7 @@ export function KenchiShell() {
       return;
     }
 
-    void loadItems(vaultPath)
+    void loadWorkspaceItems(vaultPath)
       .then((loadedItems) => {
         if (!cancelled) {
           if (itemMutationVersionRef.current === initialItemMutationVersion) {
@@ -686,7 +867,7 @@ export function KenchiShell() {
       return;
     }
 
-    mutateItems((current) => attachProjectIdsFromNames(current, projects));
+    void mutateItems((current) => attachProjectIdsFromNames(current, projects));
   }, [projects]);
 
   useEffect(() => {
@@ -811,48 +992,6 @@ export function KenchiShell() {
   }, [vaultPath]);
 
   useEffect(() => {
-    if (!vaultPath || loadedItemVaultPath !== vaultPath) {
-      return;
-    }
-
-    void saveItems(vaultPath, items)
-      .then(() => {
-        if (pendingCreateToast) {
-          setToastMessage(pendingCreateToast);
-          setPendingCreateToast("");
-        }
-      })
-      .catch(() => {
-        setPendingCreateToast("");
-      });
-  }, [items, loadedItemVaultPath, pendingCreateToast, vaultPath]);
-
-  useEffect(() => {
-    if (!vaultPath || loadedProfileVaultPath !== vaultPath) {
-      return;
-    }
-
-    void saveProfile(vaultPath, profile);
-  }, [loadedProfileVaultPath, profile, vaultPath]);
-
-  useEffect(() => {
-    if (!vaultPath || loadedProjectVaultPath !== vaultPath) {
-      return;
-    }
-
-    void saveProjects(vaultPath, projects)
-      .then(() => {
-        if (pendingCreateToast) {
-          setToastMessage(pendingCreateToast);
-          setPendingCreateToast("");
-        }
-      })
-      .catch(() => {
-        setPendingCreateToast("");
-      });
-  }, [loadedProjectVaultPath, pendingCreateToast, projects, vaultPath]);
-
-  useEffect(() => {
     if (!vaultPath || loadedJournalVaultPath !== vaultPath) {
       return;
     }
@@ -862,8 +1001,8 @@ export function KenchiShell() {
       .then((summaries) => {
         setJournalSummaries(summaries);
       })
-      .catch(() => {
-        // Keep the optimistic summary state if the save or reload fails.
+      .catch((error) => {
+        setToastMessage(formatPersistenceError("save journal entry", error));
       });
   }, [journalEntry, loadedJournalVaultPath, vaultPath]);
 
@@ -874,6 +1013,38 @@ export function KenchiShell() {
   function navigateToProject(projectId: string) {
     setSelectedProjectId(projectId);
     setActiveView("projects");
+  }
+
+  function navigateToTask(taskId: string) {
+    setSelectedTaskId(taskId);
+    setActiveView("tasks");
+  }
+
+  function navigateToGoal(goalId: string) {
+    setSelectedGoalId(goalId);
+    setActiveView("goals");
+  }
+
+  function navigateToInboxItem(_itemId: string) {
+    setActiveView("inbox");
+  }
+
+  function openListPalette(kind: ListPaletteKind) {
+    const configs = {
+      projects: { count: projects.length, emptyMessage: "No projects yet." },
+      tasks: { count: taskItems.length, emptyMessage: "No tasks yet." },
+      goals: { count: goalItems.length, emptyMessage: "No goals yet." },
+      inbox: { count: inboxItems.length, emptyMessage: "No inbox items yet." },
+    } satisfies Record<ListPaletteKind, { count: number; emptyMessage: string }>;
+
+    const config = configs[kind];
+
+    if (config.count > 0) {
+      setListPaletteKind(kind);
+      return;
+    }
+
+    setToastMessage(config.emptyMessage);
   }
 
   function openSettings() {
@@ -912,15 +1083,17 @@ export function KenchiShell() {
     setVaultError("");
 
     const nextVaultPath = pendingVaultPath.trim();
+    const nextProfile = {
+      name: pendingProfileName.trim() || defaultProfile.name,
+      profilePicture: pendingProfilePicture,
+    };
+    let resolvedVaultPath = nextVaultPath;
 
     if (nextVaultPath) {
       try {
-        const initializedVaultPath = await invoke<string>("initialize_vault", {
-          path: nextVaultPath,
-        });
+        const initializedVaultPath = await initializeVault(nextVaultPath);
 
-        setVaultPath(initializedVaultPath);
-        window.localStorage.setItem(vaultPathStorageKey, initializedVaultPath);
+        resolvedVaultPath = initializedVaultPath;
       } catch (error) {
         setVaultError(
           error instanceof Error ? error.message : "Failed to initialize vault path.",
@@ -930,12 +1103,21 @@ export function KenchiShell() {
     } else {
       setVaultPath("");
       window.localStorage.removeItem(vaultPathStorageKey);
+      setProfile(nextProfile);
+      setSettingsOpen(false);
+      return;
     }
 
-    setProfile({
-      name: pendingProfileName.trim() || defaultProfile.name,
-      profilePicture: pendingProfilePicture,
-    });
+    try {
+      await saveProfile(resolvedVaultPath, nextProfile);
+    } catch (error) {
+      setToastMessage(formatPersistenceError("save profile", error));
+      return;
+    }
+
+    setVaultPath(resolvedVaultPath);
+    window.localStorage.setItem(vaultPathStorageKey, resolvedVaultPath);
+    setProfile(nextProfile);
     setSettingsOpen(false);
   }
 
@@ -958,9 +1140,24 @@ export function KenchiShell() {
     setCommandPaletteOpen(false);
   }
 
-  function handleSelectProject(item: CommandPaletteItem) {
-    navigateToProject(item.id);
-    setProjectPaletteOpen(false);
+  function handleSelectListItem(item: CommandPaletteItem) {
+    if (listPaletteKind === "projects") {
+      navigateToProject(item.id);
+    }
+
+    if (listPaletteKind === "tasks") {
+      navigateToTask(item.id);
+    }
+
+    if (listPaletteKind === "goals") {
+      navigateToGoal(item.id);
+    }
+
+    if (listPaletteKind === "inbox") {
+      navigateToInboxItem(item.id);
+    }
+
+    setListPaletteKind(null);
   }
 
   function handleCaptureThought(value: string) {
@@ -970,39 +1167,50 @@ export function KenchiShell() {
       return;
     }
 
-    mutateItems((current) => [
+    void mutateItems(
+      (current) => [
+        {
+          id: `item-${Date.now()}`,
+          kind: "capture",
+          state: "inbox",
+          sourceType: "capture",
+          title: text,
+          content: text,
+          createdAt: "Just now",
+          updatedAt: "Just now",
+          tags: [],
+          project: "",
+          isCompleted: false,
+          priority: "",
+          dueDate: "",
+          completedAt: "",
+          estimate: "",
+          goalMetric: "tasks_completed",
+          goalTarget: 1,
+          goalProgress: 0,
+          goalProgressByDate: {},
+          goalPeriod: "weekly",
+        },
+        ...current,
+      ],
       {
-        id: `item-${Date.now()}`,
-        kind: "capture",
-        state: "inbox",
-        sourceType: "capture",
-        title: text,
-        content: text,
-        createdAt: "Just now",
-        updatedAt: "Just now",
-        tags: [],
-        project: "",
-        taskStatus: "inbox",
-        priority: "",
-        dueDate: "",
-        completedAt: "",
-        estimate: "",
-        goalMetric: "tasks_completed",
-        goalTarget: 1,
-        goalProgress: 0,
-        goalProgressByDate: {},
-        goalPeriod: "weekly",
-        goalTrackingMode: "automatic",
+        successMessage: "Inbox item saved to vault.",
+        onSuccess: () => {
+          setQuickCaptureOpen(false);
+        },
       },
-      ...current,
-    ]);
-    setPendingCreateToast("Inbox item saved to vault.");
-    setQuickCaptureOpen(false);
+    );
   }
 
-  function handleCreateTask(task: { title: string; description: string; projectId: string }) {
+  function handleCreateTask(task: {
+    title: string;
+    description: string;
+    projectId: string;
+    goalId: string;
+  }) {
+    const nextTaskId = `item-${Date.now()}`;
     const nextTask: Item = {
-      id: `item-${Date.now()}`,
+      id: nextTaskId,
       kind: "task",
       state: "active",
       sourceType: "manual",
@@ -1013,7 +1221,7 @@ export function KenchiShell() {
       tags: [],
       projectId: task.projectId || undefined,
       project: getProjectName(projects, task.projectId, ""),
-      taskStatus: "inbox",
+      isCompleted: false,
       priority: "",
       dueDate: "",
       completedAt: "",
@@ -1023,14 +1231,61 @@ export function KenchiShell() {
       goalProgress: 0,
       goalProgressByDate: {},
       goalPeriod: "weekly",
-      goalTrackingMode: "automatic",
     };
 
-    mutateItems((current) => [nextTask, ...current]);
-    setPendingCreateToast("Task saved to vault.");
-    setSelectedTaskId(nextTask.id);
-    setNewTaskOpen(false);
-    setActiveView("tasks");
+    void mutateItems(
+      (current) => {
+        if (!task.goalId) {
+          return [...current, nextTask];
+        }
+
+        const linkedGoal = current.find(
+          (item) =>
+            item.id === task.goalId &&
+            item.kind === "goal" &&
+            item.goalMetric === "tasks_completed",
+        );
+
+        if (!linkedGoal) {
+          return [...current, nextTask];
+        }
+
+        const existingTaskIds = linkedGoal.goalScope?.taskIds ?? [];
+
+        if (existingTaskIds.length >= linkedGoal.goalTarget) {
+          return current;
+        }
+
+        return [
+          ...current.map((item) =>
+            item.id === linkedGoal.id
+              ? {
+                  ...item,
+                  goalScope: {
+                    ...item.goalScope,
+                    taskIds: [...existingTaskIds, nextTaskId],
+                  },
+                  updatedAt: "just now",
+                }
+              : item,
+          ),
+          nextTask,
+        ];
+      },
+      {
+        successMessage: "Task saved to vault.",
+        onSuccess: () => {
+          setSelectedTaskId(nextTask.id);
+          setNewTaskOpen(false);
+          setNewTaskGoalId("");
+        },
+      },
+    );
+  }
+
+  function handleOpenCreateTaskForGoal(goalId: string) {
+    setNewTaskGoalId(goalId);
+    setNewTaskOpen(true);
   }
 
   function handleCreateGoal(goal: {
@@ -1038,8 +1293,7 @@ export function KenchiShell() {
     description: string;
     target: number;
     period: Item["goalPeriod"];
-    trackingMode: Item["goalTrackingMode"];
-    metric: Item["goalMetric"];
+    metric?: Item["goalMetric"];
     projectId: string;
   }) {
     const nextGoal: Item = {
@@ -1053,7 +1307,7 @@ export function KenchiShell() {
       updatedAt: "just now",
       tags: [],
       project: "",
-      taskStatus: "inbox",
+      isCompleted: false,
       priority: "",
       dueDate: "",
       completedAt: "",
@@ -1063,15 +1317,76 @@ export function KenchiShell() {
       goalProgress: 0,
       goalProgressByDate: {},
       goalPeriod: goal.period,
-      goalTrackingMode: goal.trackingMode,
-      goalScope: goal.projectId ? { projectId: goal.projectId } : undefined,
+      goalScope:
+        goal.metric === "tasks_completed" && goal.projectId
+          ? { projectId: goal.projectId }
+          : undefined,
     };
 
-    mutateItems((current) => [nextGoal, ...current]);
-    setPendingCreateToast("Goal saved to vault.");
-    setSelectedGoalId(nextGoal.id);
-    setNewGoalOpen(false);
-    setActiveView("goals");
+    void mutateItems(
+      (current) => [nextGoal, ...current],
+      {
+        successMessage: "Goal saved to vault.",
+        onSuccess: () => {
+          setSelectedGoalId(nextGoal.id);
+          setNewGoalOpen(false);
+          setEditingGoalId("");
+          setActiveView("goals");
+        },
+      },
+    );
+  }
+
+  function handleOpenEditGoal(goalId: string) {
+    setEditingGoalId(goalId);
+    setNewGoalOpen(true);
+  }
+
+  function handleEditGoal(goal: {
+    title: string;
+    description: string;
+    target: number;
+    period: Item["goalPeriod"];
+    metric?: Item["goalMetric"];
+    projectId: string;
+  }) {
+    if (!editingGoalId) {
+      return;
+    }
+
+    void mutateItems(
+      (current) =>
+        current.map((item) =>
+          item.id === editingGoalId && item.kind === "goal"
+            ? {
+                ...item,
+                title: goal.title,
+                content: goal.description,
+                projectId: goal.projectId || undefined,
+                project: getProjectName(projects, goal.projectId, ""),
+                goalMetric: goal.metric,
+                goalTarget: goal.target,
+                goalPeriod: goal.period,
+                goalScope:
+                  goal.metric === "tasks_completed"
+                    ? {
+                        ...item.goalScope,
+                        projectId: goal.projectId || undefined,
+                      }
+                    : undefined,
+                updatedAt: "just now",
+              }
+            : item,
+        ),
+      {
+        successMessage: "Goal updated.",
+        onSuccess: () => {
+          setSelectedGoalId(editingGoalId);
+          setNewGoalOpen(false);
+          setEditingGoalId("");
+        },
+      },
+    );
   }
 
   function handleCreateProject(project: { name: string; description: string }) {
@@ -1084,18 +1399,21 @@ export function KenchiShell() {
       updatedAt: timestamp,
     };
 
-    projectMutationVersionRef.current += 1;
-    setProjects((current) => [nextProject, ...current]);
-    setPendingCreateToast("Project saved to vault.");
-    setSelectedProjectId(nextProject.id);
-    setNewProjectOpen(false);
-    setActiveView("projects");
+    void mutateProjects(
+      (current) => [nextProject, ...current],
+      {
+        successMessage: "Project saved to vault.",
+        onSuccess: () => {
+          setSelectedProjectId(nextProject.id);
+          setNewProjectOpen(false);
+          setActiveView("projects");
+        },
+      },
+    );
   }
 
   function handleUpdateProject(projectId: string, updates: Partial<Project>) {
-    projectMutationVersionRef.current += 1;
-
-    setProjects((current) => {
+    void mutateProjects((current) => {
       const existingProject = current.find((project) => project.id === projectId);
 
       if (!existingProject) {
@@ -1130,23 +1448,28 @@ export function KenchiShell() {
   }
 
   function handleDeleteProject(projectId: string) {
-    projectMutationVersionRef.current += 1;
-    setProjects((current) => current.filter((project) => project.id !== projectId));
-    mutateItems((current) => clearProjectReferences(current, projectId));
-    setSelectedProjectId((current) => (current === projectId ? "" : current));
+    void mutateProjects(
+      (current) => current.filter((project) => project.id !== projectId),
+      {
+        onSuccess: () => {
+          void mutateItems((current) => clearProjectReferences(current, projectId));
+          setSelectedProjectId((current) => (current === projectId ? "" : current));
+        },
+      },
+    );
   }
 
   function handleUpdateTask(taskId: string, updates: Partial<Item>) {
-    mutateItems((current) =>
+    void mutateItems((current) =>
       current.map((item) =>
         item.id === taskId
           ? {
               ...item,
               ...updates,
               completedAt:
-                updates.taskStatus === "done"
+                updates.isCompleted === true
                   ? todayDate
-                  : typeof updates.taskStatus !== "undefined"
+                  : updates.isCompleted === false
                     ? ""
                     : item.completedAt,
               updatedAt: "just now",
@@ -1157,7 +1480,7 @@ export function KenchiShell() {
   }
 
   function handleUpdateGoal(goalId: string, updates: Partial<Item>) {
-    mutateItems((current) =>
+    void mutateItems((current) =>
       current.map((item) =>
         item.id === goalId
           ? {
@@ -1185,34 +1508,38 @@ export function KenchiShell() {
   }
 
   function handleTransformItem(itemId: string, kind: Item["kind"]) {
-    mutateItems((current) =>
-      current.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              kind,
-              state: kind === "document" || kind === "capture" ? "inbox" : "active",
-              sourceType: item.sourceType === "capture" ? "capture" : item.sourceType,
-              taskStatus: kind === "task" ? "inbox" : item.taskStatus,
-              updatedAt: "just now",
-            }
-          : item,
-      ),
+    void mutateItems(
+      (current) =>
+        current.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                kind,
+                state: kind === "document" || kind === "capture" ? "inbox" : "active",
+                sourceType: item.sourceType === "capture" ? "capture" : item.sourceType,
+                isCompleted: kind === "task" ? false : item.isCompleted,
+                updatedAt: "just now",
+              }
+            : item,
+        ),
+      {
+        onSuccess: () => {
+          if (kind === "task") {
+            setSelectedTaskId(itemId);
+            setActiveView("tasks");
+          }
+
+          if (kind === "goal") {
+            setSelectedGoalId(itemId);
+            setActiveView("goals");
+          }
+        },
+      },
     );
-
-    if (kind === "task") {
-      setSelectedTaskId(itemId);
-      setActiveView("tasks");
-    }
-
-    if (kind === "goal") {
-      setSelectedGoalId(itemId);
-      setActiveView("goals");
-    }
   }
 
   function handleUpdateItemState(itemId: string, state: Item["state"]) {
-    mutateItems((current) =>
+    void mutateItems((current) =>
       current.map((item) =>
         item.id === itemId ? { ...item, state, updatedAt: "just now" } : item,
       ),
@@ -1220,9 +1547,15 @@ export function KenchiShell() {
   }
 
   function handleDeleteItem(itemId: string) {
-    mutateItems((current) => current.filter((item) => item.id !== itemId));
-    setSelectedTaskId((current) => (current === itemId ? "" : current));
-    setSelectedGoalId((current) => (current === itemId ? "" : current));
+    void mutateItems(
+      (current) => current.filter((item) => item.id !== itemId),
+      {
+        onSuccess: () => {
+          setSelectedTaskId((current) => (current === itemId ? "" : current));
+          setSelectedGoalId((current) => (current === itemId ? "" : current));
+        },
+      },
+    );
   }
 
   function handleSelectCommand(item: CommandPaletteItem) {
@@ -1358,6 +1691,8 @@ export function KenchiShell() {
               onSelectGoal={setSelectedGoalId}
               onUpdateGoal={handleUpdateGoal}
               onDeleteGoal={handleDeleteItem}
+              onEditGoal={handleOpenEditGoal}
+              onCreateTaskForGoal={handleOpenCreateTaskForGoal}
               onSelectTask={setSelectedTaskId}
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteItem}
@@ -1420,13 +1755,13 @@ export function KenchiShell() {
       />
 
       <CommandPalette
-        title="Projects"
-        placeholder="list projects"
-        items={projectItems}
-        isOpen={projectPaletteOpen}
-        emptyMessage="No projects match that query."
-        onClose={() => setProjectPaletteOpen(false)}
-        onSelect={handleSelectProject}
+        title={listPaletteConfig?.title ?? "List"}
+        placeholder={listPaletteConfig?.placeholder ?? "list"}
+        items={listPaletteConfig?.items ?? []}
+        isOpen={listPaletteKind !== null}
+        emptyMessage={listPaletteConfig?.emptyMessage ?? "No items match that query."}
+        onClose={() => setListPaletteKind(null)}
+        onSelect={handleSelectListItem}
       />
 
       <CommandPalette
@@ -1447,16 +1782,58 @@ export function KenchiShell() {
 
       <NewTaskModal
         isOpen={newTaskOpen}
-        onClose={() => setNewTaskOpen(false)}
+        onClose={() => {
+          setNewTaskOpen(false);
+          setNewTaskGoalId("");
+        }}
+        goals={items
+          .filter(
+            (item) =>
+              item.kind === "goal" &&
+              item.state !== "deleted" &&
+              item.goalMetric === "tasks_completed",
+          )
+          .map((goal) => ({
+            id: goal.id,
+            title: goal.title,
+            remainingSlots: Math.max(0, goal.goalTarget - (goal.goalScope?.taskIds?.length ?? 0)),
+            projectId: goal.goalScope?.projectId,
+          }))}
+        initialGoalId={newTaskGoalId}
         projects={projects}
         onSubmit={handleCreateTask}
       />
 
       <NewGoalModal
         isOpen={newGoalOpen}
-        onClose={() => setNewGoalOpen(false)}
+        onClose={() => {
+          setNewGoalOpen(false);
+          setEditingGoalId("");
+        }}
         projects={projects}
-        onSubmit={handleCreateGoal}
+        initialGoal={
+          editingGoalId
+            ? (() => {
+                const goal = items.find(
+                  (item) => item.id === editingGoalId && item.kind === "goal",
+                );
+
+                if (!goal) {
+                  return undefined;
+                }
+
+                return {
+                  title: goal.title,
+                  description: goal.content,
+                  target: goal.goalTarget,
+                  period: goal.goalPeriod,
+                  metric: goal.goalMetric,
+                  projectId: goal.goalScope?.projectId ?? goal.projectId ?? "",
+                };
+              })()
+            : undefined
+        }
+        onSubmit={editingGoalId ? handleEditGoal : handleCreateGoal}
       />
 
       <NewProjectModal

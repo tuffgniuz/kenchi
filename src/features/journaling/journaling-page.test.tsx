@@ -2,6 +2,17 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { JournalingPage } from "./journaling-page";
 import type { JournalEntry } from "../../models/journal";
+import type { JournalEntrySummary } from "../../models/journal";
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+
+  fireEvent(window, new Event("resize"));
+}
 
 function createEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
   return {
@@ -20,6 +31,15 @@ function createEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
     },
     createdAt: "2026-03-17T00:00:00.000Z",
     updatedAt: "2026-03-17T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createEntrySummary(overrides: Partial<JournalEntrySummary> = {}): JournalEntrySummary {
+  return {
+    id: "summary-2026-03-17",
+    date: "2026-03-17",
+    preview: "# Diary # Reflection Entry # Focus",
     ...overrides,
   };
 }
@@ -99,5 +119,46 @@ describe("JournalingPage intentions", () => {
 
     expect(onUpdateEntry).toHaveBeenCalledWith({ morningIntention: "" });
     vi.useRealTimers();
+  });
+
+  it("keeps the day list accessible as an inline picker on medium widths", () => {
+    setViewportWidth(1100);
+
+    render(
+      <JournalingPage
+        todayDate="2026-03-17"
+        selectedDate="2026-03-17"
+        entry={createEntry()}
+        entries={[
+          createEntrySummary(),
+          createEntrySummary({ id: "summary-2026-03-16", date: "2026-03-16", preview: "Yesterday" }),
+        ]}
+        items={[]}
+        onSelectDate={vi.fn()}
+        onUpdateEntry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("journal-inline-days")).toBeInTheDocument();
+    expect(screen.queryByTestId("journal-stacked-context")).not.toBeInTheDocument();
+  });
+
+  it("moves the right rail below the entry on narrow widths", () => {
+    setViewportWidth(800);
+
+    render(
+      <JournalingPage
+        todayDate="2026-03-17"
+        selectedDate="2026-03-17"
+        entry={createEntry()}
+        entries={[createEntrySummary()]}
+        items={[]}
+        onSelectDate={vi.fn()}
+        onUpdateEntry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("journal-inline-days")).toBeInTheDocument();
+    expect(screen.getByTestId("journal-stacked-context")).toBeInTheDocument();
   });
 });

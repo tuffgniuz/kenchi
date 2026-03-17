@@ -1,4 +1,4 @@
-import type { Item } from "../models/item";
+import type { Item } from "../models/workspace-item";
 import type { JournalEntrySummary } from "../models/journal";
 import { buildRightRailContext } from "../lib/domain/right-rail-context";
 
@@ -24,9 +24,14 @@ export function RightRailColumn({
             {context.goals.map((goal) => (
               <div key={goal.id} className="right-rail__goal-item">
                 <div className="right-rail__goal-header">
-                  <p className="right-rail__goal-title" title={goal.title}>
-                    {goal.title}
-                  </p>
+                  <div className="right-rail__goal-copy">
+                    <p className="right-rail__goal-title" title={goal.title}>
+                      {goal.title}
+                    </p>
+                    {goal.projectLabel ? (
+                      <p className="right-rail__goal-meta">{goal.projectLabel}</p>
+                    ) : null}
+                  </div>
                   <span className="right-rail__goal-progress">
                     {goal.completedCount}/{goal.progressDenominator}
                   </span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { FloatingPanel } from "../../components/floating-panel";
+import { FormField } from "../../components/ui/form-field";
+import { Modal } from "../../components/ui/modal";
 
 export function QuickCaptureModal({
   isOpen,
@@ -29,24 +30,22 @@ export function QuickCaptureModal({
   }
 
   return (
-    <FloatingPanel
-      ariaLabelledBy="quick-capture-title"
-      className="quick-capture"
-      onClose={onClose}
-    >
+    <Modal ariaLabelledBy="quick-capture-title" className="quick-capture" onClose={onClose}>
       <form className="quick-capture__form" onSubmit={handleSubmit}>
         <p id="quick-capture-title" className="quick-capture__title">
           Quick Capture
         </p>
-        <input
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          className="quick-capture__input"
-          placeholder="Capture a thought"
-          aria-label="Capture a thought"
-          autoFocus
-        />
+        <FormField>
+          <input
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="modal-form__input ui-input"
+            placeholder="Capture a thought"
+            aria-label="Capture a thought"
+            autoFocus
+          />
+        </FormField>
       </form>
-    </FloatingPanel>
+    </Modal>
   );
 }

@@ -1,12 +1,16 @@
-import { useState } from "react";
-import { TrashIcon } from "../../app/icons";
+import { useEffect, useState } from "react";
+import { ArrowTurnIcon, EditIcon, TrashIcon } from "../../app/icons";
 import { Card } from "../../components/card";
-import { FloatingPanel } from "../../components/floating-panel";
 import { RightRailColumn } from "../../components/right-rail-column";
 import { ThreeColumnLayout } from "../../components/three-column-layout";
+import { ActionBar } from "../../components/ui/action-bar";
+import { EmptyState } from "../../components/ui/empty-state";
+import { Modal } from "../../components/ui/modal";
+import { PageShell } from "../../components/ui/page-shell";
+import { useWindowWidth } from "../../hooks/use-window-width";
 import { resolveGoalProgress, resolveGoalProgressForDate } from "../../lib/domain/goal-progress";
 import { getProjectName } from "../../lib/domain/project-relations";
-import type { GoalPeriod, Item } from "../../models/item";
+import type { GoalPeriod, Item } from "../../models/workspace-item";
 import type { JournalEntrySummary } from "../../models/journal";
 import type { Project } from "../../models/project";
 
@@ -19,6 +23,10 @@ type GoalsPageProps = {
   onSelectGoal: (goalId: string) => void;
   onUpdateGoal: (goalId: string, updates: Partial<Item>) => void;
   onDeleteGoal: (goalId: string) => void;
+  onEditGoal: (goalId: string) => void;
+  onUpdateTask: (taskId: string, updates: Partial<Item>) => void;
+  onDeleteTask: (taskId: string) => void;
+  onCreateTaskForGoal: (goalId: string) => void;
 };
 
 const periodOptions: Array<{ id: GoalPeriod; label: string }> = [
@@ -37,27 +45,47 @@ export function GoalsPage({
   onSelectGoal,
   onUpdateGoal,
   onDeleteGoal,
+  onEditGoal,
+  onUpdateTask,
+  onDeleteTask,
+  onCreateTaskForGoal,
 }: GoalsPageProps) {
+  const windowWidth = useWindowWidth();
   const [activePeriod, setActivePeriod] = useState<GoalPeriod>("daily");
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<{
     id: string;
     title: string;
   } | null>(null);
   const goals = items.filter((item) => item.kind === "goal" && item.state === "active");
+  const selectedGoal = goals.find((goal) => goal.id === selectedGoalId) ?? null;
   const filteredGoals = goals.filter((goal) => goal.goalPeriod === activePeriod);
   const progressContext = {
     items,
     journalSummaries,
     todayDate,
   };
+  const layoutMode = resolveGoalsLayoutMode(windowWidth);
+  const showInlinePeriods = layoutMode !== "wide";
+  const showStackedInsights = layoutMode === "narrow";
+  const showRightRail = layoutMode !== "narrow";
+
+  useEffect(() => {
+    if (!selectedGoal) {
+      return;
+    }
+
+    setActivePeriod(selectedGoal.goalPeriod);
+  }, [selectedGoal]);
 
   return (
-    <section className="page page--goals" aria-label="Goals">
+    <PageShell ariaLabel="Goals" className="page--goals">
       <ThreeColumnLayout
         className="goals-layout"
         leftClassName="goals-rail"
         centerClassName="goals-main"
         rightClassName="goals-insights"
+        leftCollapsed={showInlinePeriods}
+        rightCollapsed={!showRightRail}
         leftLabel="Goal periods"
         centerLabel="Goals"
         rightLabel="Goal insights"
@@ -66,18 +94,11 @@ export function GoalsPage({
             <div className="goals-rail__header">
               <p className="page__eyebrow">Filter</p>
             </div>
-            <div className="goals-rail__list">
-              {periodOptions.map((period) => (
-                <button
-                  key={period.id}
-                  type="button"
-                  className={`goals-rail__item ${activePeriod === period.id ? "is-active" : ""}`}
-                  onClick={() => setActivePeriod(period.id)}
-                >
-                  <span className="goals-rail__name">{period.label}</span>
-                </button>
-              ))}
-            </div>
+            <GoalPeriodFilters
+              activePeriod={activePeriod}
+              onSelectPeriod={setActivePeriod}
+              className="goals-rail__list"
+            />
           </>
         }
         center={
@@ -86,12 +107,20 @@ export function GoalsPage({
                 <header className="goals-main__header">
                   <p className="page__eyebrow">Goals</p>
                   <h1 className="goals-main__title">{labelForPeriod(activePeriod)} goals</h1>
+                  {showInlinePeriods ? (
+                    <GoalPeriodFilters
+                      activePeriod={activePeriod}
+                      onSelectPeriod={setActivePeriod}
+                      className="goals-periods goals-periods--inline"
+                      testId="goals-inline-periods"
+                    />
+                  ) : null}
                 </header>
                 <div className="goals-main__cards">
                   {filteredGoals.map((goal) => {
                     const progress = resolveGoalProgress(goal, progressContext);
                     const progressByDate = goal.goalProgressByDate ?? {};
-                    const manualProgress = resolveGoalProgressForDate(goal, progressContext, todayDate);
+                    const directCompletion = resolveGoalProgressForDate(goal, progressContext, todayDate);
                     const projectName = getProjectName(
                       projects,
                       goal.goalScope?.projectId,
@@ -107,16 +136,14 @@ export function GoalsPage({
                         onClick={() => onSelectGoal(goal.id)}
                       >
                         <div className="goal-card__header">
-                          <div>
+                          <div className="goal-card__copy">
                             <h2 className="goal-card__title">{goal.title}</h2>
                             {goal.content.trim() ? (
                               <p className="goal-card__description">{goal.content}</p>
                             ) : null}
                             <p className="goal-card__meta">
                               {projectName}
-                              {goal.goalTrackingMode === "automatic"
-                                ? ` • ${formatMetricLabel(goal.goalMetric)}`
-                                : " • Manual"}
+                              {` • ${formatMetricLabel(goal.goalMetric)}`}
                             </p>
                           </div>
                           <p className="goal-card__progress">
@@ -126,43 +153,75 @@ export function GoalsPage({
                         {progress.linkedTasks.length > 0 ? (
                           <div className="goal-card__linked-tasks">
                             {progress.linkedTasks.map((task) => (
-                              <label key={task.id} className="goal-card__linked-task">
-                                <input
-                                  type="checkbox"
-                                  checked={task.taskStatus === "done"}
-                                  readOnly
-                                />
-                                <span>{task.title}</span>
-                              </label>
-                            ))}
-                          </div>
-                        ) : progress.isManual ? (
-                          <div className="goal-card__checklist" aria-label={`${goal.title} progress`}>
-                            {Array.from({ length: goal.goalTarget }, (_, index) => {
-                              const checked = index < manualProgress;
-
-                              return (
+                              <div key={task.id} className="goal-card__linked-task">
+                                <label className="goal-card__linked-task-main">
+                                  <input
+                                    type="checkbox"
+                                    checked={task.isCompleted}
+                                    aria-label={`Complete ${task.title}`}
+                                    onChange={(event) => {
+                                      event.stopPropagation();
+                                      onUpdateTask(task.id, {
+                                        isCompleted: event.target.checked,
+                                      });
+                                    }}
+                                  />
+                                  <span className="goal-card__linked-task-mark" aria-hidden="true" />
+                                  <span className="goal-card__linked-task-title">{task.title}</span>
+                                </label>
                                 <button
-                                  key={`${goal.id}-${index}`}
                                   type="button"
-                                  className={`goal-card__checkbox ${checked ? "is-checked" : ""}`}
-                                  aria-pressed={checked}
+                                  className="goal-card__delete"
+                                  aria-label={`Unlink ${task.title}`}
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    const nextProgress = checked ? index : index + 1;
                                     onUpdateGoal(goal.id, {
-                                      goalProgress: nextProgress,
-                                      goalProgressByDate: {
-                                        ...progressByDate,
-                                        [todayDate]: nextProgress,
+                                      goalScope: {
+                                        ...goal.goalScope,
+                                        taskIds: (goal.goalScope?.taskIds ?? []).filter(
+                                          (taskId) => taskId !== task.id,
+                                        ),
                                       },
                                     });
                                   }}
                                 >
-                                  <span className="goal-card__checkbox-mark" />
+                                  <ArrowTurnIcon className="goal-card__delete-icon" />
                                 </button>
-                              );
-                            })}
+                                <button
+                                  type="button"
+                                  className="goal-card__delete"
+                                  aria-label={`Delete ${task.title}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    onDeleteTask(task.id);
+                                  }}
+                                >
+                                  <TrashIcon className="goal-card__delete-icon" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : progress.isDirectCompletion ? (
+                          <div className="goal-card__checklist" aria-label={`${goal.title} completion`}>
+                            <button
+                              type="button"
+                              className={`goal-card__checkbox ${directCompletion > 0 ? "is-checked" : ""}`}
+                              aria-pressed={directCompletion > 0}
+                              aria-label={`${directCompletion > 0 ? "Mark" : "Mark"} ${goal.title} complete`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const nextProgress = directCompletion > 0 ? 0 : 1;
+                                onUpdateGoal(goal.id, {
+                                  goalProgress: nextProgress,
+                                  goalProgressByDate: {
+                                    ...progressByDate,
+                                    [todayDate]: nextProgress,
+                                  },
+                                });
+                              }}
+                            >
+                              <span className="goal-card__checkbox-mark" />
+                            </button>
                           </div>
                         ) : (
                           <div className="goal-card__linked-tasks" aria-label={`${goal.title} source`}>
@@ -181,6 +240,24 @@ export function GoalsPage({
                           <button
                             type="button"
                             className="goal-card__delete"
+                            aria-label={`Edit ${goal.title}`}
+                            onClick={() => onEditGoal(goal.id)}
+                          >
+                            <EditIcon className="goal-card__delete-icon" />
+                          </button>
+                          {goal.goalMetric === "tasks_completed" ? (
+                            <button
+                              type="button"
+                              className="goal-card__delete"
+                              aria-label={`Add task to ${goal.title}`}
+                              onClick={() => onCreateTaskForGoal(goal.id)}
+                            >
+                              +
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="goal-card__delete"
                             aria-label={`Delete ${goal.title}`}
                             onClick={() => setPendingDeleteGoal({ id: goal.id, title: goal.title })}
                           >
@@ -193,61 +270,23 @@ export function GoalsPage({
                 </div>
               </div>
             ) : (
-              <div className="goals-empty">
-                <div className="goals-empty__art" aria-hidden="true">
-                  <svg viewBox="0 0 180 180" className="goals-empty__svg">
-                    <defs>
-                      <linearGradient id="goals-empty-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="var(--color-focus-ring)" stopOpacity="0.75" />
-                      </linearGradient>
-                    </defs>
-                    <circle
-                      cx="90"
-                      cy="90"
-                      r="68"
-                      fill="url(#goals-empty-gradient)"
-                      opacity="0.12"
+              <div className="goals-empty-shell" data-testid="goals-empty-shell">
+                <div className="goals-empty-state">
+                  {showInlinePeriods ? (
+                    <GoalPeriodFilters
+                      activePeriod={activePeriod}
+                      onSelectPeriod={setActivePeriod}
+                      className="goals-periods goals-periods--inline"
+                      testId="goals-inline-periods"
                     />
-                    <circle
-                      cx="90"
-                      cy="90"
-                      r="34"
-                      fill="none"
-                      stroke="var(--color-border-strong)"
-                      strokeWidth="4"
-                    />
-                    <circle
-                      cx="90"
-                      cy="90"
-                      r="16"
-                      fill="none"
-                      stroke="var(--color-text-secondary)"
-                      strokeWidth="4"
-                    />
-                    <path
-                      d="M90 42v18M90 120v18M42 90h18M120 90h18"
-                      fill="none"
-                      stroke="var(--color-text-muted)"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="132" cy="56" r="12" fill="var(--color-panel-bg)" />
-                    <path
-                      d="M132 50v12M126 56h12"
-                      fill="none"
-                      stroke="var(--color-accent)"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  ) : null}
+                  <EmptyState
+                    className="goals-empty"
+                    badge="Goals"
+                    title={`No ${activePeriod} goals yet`}
+                    copy="Create a goal to give this period a target."
+                  />
                 </div>
-                <header className="goals-main__header">
-                  <p className="page__eyebrow">Goals</p>
-                  <h1 className="goals-main__title">{labelForPeriod(activePeriod)} goals</h1>
-                </header>
-                <p className="goals-empty__title">No {activePeriod} goals yet</p>
-                <p className="goals-empty__copy">Create a goal to give this period a target.</p>
               </div>
             )
         }
@@ -255,6 +294,16 @@ export function GoalsPage({
           <RightRailColumn items={items} journalSummaries={journalSummaries} todayDate={todayDate} />
         }
       />
+
+      {showStackedInsights ? (
+        <section
+          className="goals-stacked-insights"
+          aria-label="Goal insights"
+          data-testid="goals-stacked-insights"
+        >
+          <RightRailColumn items={items} journalSummaries={journalSummaries} todayDate={todayDate} />
+        </section>
+      ) : null}
 
       {pendingDeleteGoal ? (
         <GoalDeleteConfirmModal
@@ -266,8 +315,52 @@ export function GoalsPage({
           }}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
+}
+
+function GoalPeriodFilters({
+  activePeriod,
+  onSelectPeriod,
+  className,
+  testId,
+}: {
+  activePeriod: GoalPeriod;
+  onSelectPeriod: (period: GoalPeriod) => void;
+  className?: string;
+  testId?: string;
+}) {
+  return (
+    <div
+      className={className}
+      role="tablist"
+      aria-label="Goal periods"
+      data-testid={testId}
+    >
+      {periodOptions.map((period) => (
+        <button
+          key={period.id}
+          type="button"
+          className={`goals-rail__item ${activePeriod === period.id ? "is-active" : ""}`}
+          onClick={() => onSelectPeriod(period.id)}
+        >
+          <span className="goals-rail__name">{period.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function resolveGoalsLayoutMode(windowWidth: number): "wide" | "medium" | "narrow" {
+  if (windowWidth < 900) {
+    return "narrow";
+  }
+
+  if (windowWidth < 1280) {
+    return "medium";
+  }
+
+  return "wide";
 }
 
 function labelForPeriod(period: GoalPeriod) {
@@ -278,12 +371,8 @@ function formatMetricLabel(metric: Item["goalMetric"]) {
   switch (metric) {
     case "tasks_completed":
       return "Tasks";
-    case "journal_entries_written":
-      return "Journal";
-    case "manual_units":
-      return "Manual";
     default:
-      return "Automatic";
+      return "Direct";
   }
 }
 
@@ -291,10 +380,8 @@ function automaticGoalDescription(goal: Item) {
   switch (goal.goalMetric) {
     case "tasks_completed":
       return "Progress updates from completed tasks in the current period.";
-    case "journal_entries_written":
-      return "Progress updates from journal entries written in the current period.";
     default:
-      return "Progress updates automatically from activity in the current period.";
+      return "Mark this goal complete when you achieve it for the current period.";
   }
 }
 
@@ -308,18 +395,14 @@ function GoalDeleteConfirmModal({
   onConfirm: () => void;
 }) {
   return (
-    <FloatingPanel
-      ariaLabelledBy="goal-delete-confirm-title"
-      className="inbox-confirm"
-      onClose={onClose}
-    >
+    <Modal ariaLabelledBy="goal-delete-confirm-title" className="inbox-confirm" onClose={onClose}>
       <div className="inbox-confirm__content">
         <p id="goal-delete-confirm-title" className="new-task__title">
           Delete goal
         </p>
         <p className="inbox-confirm__item">{goalTitle}</p>
         <p className="inbox-confirm__copy">This will permanently remove the goal.</p>
-        <div className="inbox-confirm__actions">
+        <ActionBar className="inbox-confirm__actions">
           <button type="button" className="inbox-confirm__button" onClick={onClose}>
             Cancel
           </button>
@@ -330,8 +413,8 @@ function GoalDeleteConfirmModal({
           >
             Confirm
           </button>
-        </div>
+        </ActionBar>
       </div>
-    </FloatingPanel>
+    </Modal>
   );
 }

@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
-import { FloatingPanel } from "../../components/floating-panel";
-import type { Item } from "../../models/item";
+import { ActionBar } from "../../components/ui/action-bar";
+import { EmptyState } from "../../components/ui/empty-state";
+import { Modal } from "../../components/ui/modal";
+import { PageShell } from "../../components/ui/page-shell";
+import type { Item } from "../../models/workspace-item";
 
 type PendingInboxAction =
   | { type: "transform"; item: Item; nextKind: Item["kind"] }
@@ -31,11 +34,11 @@ export function CaptureInboxPage({
   );
 
   return (
-    <section className="page page--inbox" aria-label="Capture Inbox">
-      <div className="page__header page__header--inbox">
-        <div>
-          <p className="page__eyebrow">Inbox</p>
-        </div>
+    <PageShell
+      ariaLabel="Capture Inbox"
+      eyebrow="Inbox"
+      className="page--inbox"
+      headerActions={
         <div className="inbox-filters" aria-label="Inbox filters">
           <button
             type="button"
@@ -66,7 +69,8 @@ export function CaptureInboxPage({
             All
           </button>
         </div>
-      </div>
+      }
+    >
 
       {filteredItems.length > 0 ? (
         <div className="inbox-table-wrap" aria-label="Captured thoughts">
@@ -158,58 +162,12 @@ export function CaptureInboxPage({
           </table>
         </div>
       ) : (
-        <div className="inbox-empty">
-          <div className="inbox-empty__art" aria-hidden="true">
-            <svg viewBox="0 0 180 180" className="inbox-empty__svg">
-              <defs>
-                <linearGradient id="inbox-empty-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.9" />
-                  <stop offset="100%" stopColor="var(--color-focus-ring)" stopOpacity="0.75" />
-                </linearGradient>
-              </defs>
-              <circle
-                cx="90"
-                cy="90"
-                r="68"
-                fill="url(#inbox-empty-gradient)"
-                opacity="0.12"
-              />
-              <path
-                d="M52 66a10 10 0 0 1 10-10h56a10 10 0 0 1 10 10v48a10 10 0 0 1-10 10H62a10 10 0 0 1-10-10Z"
-                fill="none"
-                stroke="var(--color-border-strong)"
-                strokeWidth="4"
-              />
-              <path
-                d="M52 92h26l12 16h0l12-16h26"
-                fill="none"
-                stroke="var(--color-text-secondary)"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M71 76h38"
-                fill="none"
-                stroke="var(--color-text-muted)"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-              <circle cx="132" cy="56" r="12" fill="var(--color-panel-bg)" />
-              <path
-                d="M132 50v12M126 56h12"
-                fill="none"
-                stroke="var(--color-accent)"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <p className="inbox-empty__title">{emptyTitleForFilter(activeFilter)}</p>
-          <p className="inbox-empty__copy">
-            {emptyCopyForFilter(activeFilter)}
-          </p>
-        </div>
+        <EmptyState
+          className="inbox-empty"
+          badge="Inbox"
+          title={emptyTitleForFilter(activeFilter)}
+          copy={emptyCopyForFilter(activeFilter)}
+        />
       )}
 
       {pendingAction ? (
@@ -240,7 +198,7 @@ export function CaptureInboxPage({
           }}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
 }
 
@@ -326,18 +284,14 @@ function InboxActionConfirmModal({
         : "This will permanently remove the item.";
 
   return (
-    <FloatingPanel
-      ariaLabelledBy="inbox-confirm-title"
-      className="inbox-confirm"
-      onClose={onClose}
-    >
+    <Modal ariaLabelledBy="inbox-confirm-title" className="inbox-confirm" onClose={onClose}>
       <div className="inbox-confirm__content">
         <p id="inbox-confirm-title" className="new-task__title">
           {title}
         </p>
         <p className="inbox-confirm__item">{pendingAction.item.content || pendingAction.item.title}</p>
         <p className="inbox-confirm__copy">{description}</p>
-        <div className="inbox-confirm__actions">
+        <ActionBar className="inbox-confirm__actions">
           <button type="button" className="inbox-confirm__button" onClick={onClose}>
             Cancel
           </button>
@@ -348,8 +302,8 @@ function InboxActionConfirmModal({
           >
             Confirm
           </button>
-        </div>
+        </ActionBar>
       </div>
-    </FloatingPanel>
+    </Modal>
   );
 }

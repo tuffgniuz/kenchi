@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import { buildJournalContext } from "./journal-context";
 
 function createItem(overrides: Partial<Item> = {}): Item {
@@ -14,7 +14,7 @@ function createItem(overrides: Partial<Item> = {}): Item {
     updatedAt: "",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -24,7 +24,6 @@ function createItem(overrides: Partial<Item> = {}): Item {
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     ...overrides,
   };
 }
@@ -47,7 +46,7 @@ describe("buildJournalContext", () => {
       createItem({
         id: "task-2",
         title: "Close one task",
-        taskStatus: "done",
+        isCompleted: true,
         completedAt: "2026-03-17",
       }),
       createItem({

@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { FloatingPanel } from "../../components/floating-panel";
-import type { GoalMetric, GoalPeriod, GoalTrackingMode } from "../../models/item";
+import { ActionBar } from "../../components/ui/action-bar";
+import { FormField } from "../../components/ui/form-field";
+import { Modal } from "../../components/ui/modal";
+import { Stack } from "../../components/ui/stack";
+import type { GoalMetric, GoalPeriod } from "../../models/workspace-item";
+import { inferGoalDraft } from "./goal-draft";
+
+const metricOptions: Array<{ id: GoalMetric | "none"; label: string }> = [
+  { id: "none", label: "No metric" },
+  { id: "tasks_completed", label: "Tasks" },
+];
 
 const periodOptions: Array<{ id: GoalPeriod; label: string }> = [
   { id: "daily", label: "Daily" },
@@ -10,278 +19,247 @@ const periodOptions: Array<{ id: GoalPeriod; label: string }> = [
   { id: "yearly", label: "Yearly" },
 ];
 
-const automaticMetricOptions: Array<{ id: GoalMetric; label: string }> = [
-  { id: "tasks_completed", label: "Tasks completed" },
-  { id: "journal_entries_written", label: "Journal entries written" },
-];
+type GoalDraftSubmit = {
+  title: string;
+  description: string;
+  target: number;
+  period: GoalPeriod;
+  metric?: GoalMetric;
+  projectId: string;
+};
+
+type InitialGoalDraft = GoalDraftSubmit;
 
 export function NewGoalModal({
   isOpen,
   onClose,
   projects,
+  initialGoal,
   onSubmit,
 }: {
   isOpen: boolean;
   onClose: () => void;
   projects: Array<{ id: string; name: string }>;
-  onSubmit: (goal: {
-    title: string;
-    description: string;
-    target: number;
-    period: GoalPeriod;
-    trackingMode: GoalTrackingMode;
-    metric: GoalMetric;
-    projectId: string;
-  }) => void;
+  initialGoal?: InitialGoalDraft;
+  onSubmit: (goal: GoalDraftSubmit) => void;
 }) {
   const formRef = useRef<HTMLFormElement | null>(null);
-  const [title, setTitle] = useState("");
-  const [titleTouched, setTitleTouched] = useState(false);
-  const [description, setDescription] = useState("");
-  const [targetValue, setTargetValue] = useState("1");
-  const [period, setPeriod] = useState<GoalPeriod>("daily");
-  const [trackingMode, setTrackingMode] = useState<GoalTrackingMode>("automatic");
-  const [metric, setMetric] = useState<GoalMetric>("tasks_completed");
-  const [projectId, setProjectId] = useState("");
-
-  const parsedTarget = Number.parseInt(targetValue, 10);
-  const safeTarget = Number.isNaN(parsedTarget) || parsedTarget <= 0 ? 1 : parsedTarget;
-  const selectedProject = projects.find((project) => project.id === projectId) ?? null;
-  const generatedTitle = buildGoalSummary(safeTarget, period, selectedProject?.name ?? "");
-  const previewTitle = title.trim() || generatedTitle;
+  const [goalSentence, setGoalSentence] = useState("");
+  const [projectIdOverride, setProjectIdOverride] = useState<string | null>(null);
+  const [periodOverride, setPeriodOverride] = useState<GoalPeriod | null>(null);
+  const [metricOverride, setMetricOverride] = useState<GoalMetric | "none" | null>(null);
+  const [targetOverride, setTargetOverride] = useState<string>("");
 
   useEffect(() => {
     if (!isOpen) {
-      setTitle("");
-      setTitleTouched(false);
-      setDescription("");
-      setTargetValue("1");
-      setPeriod("daily");
-      setTrackingMode("automatic");
-      setMetric("tasks_completed");
-      setProjectId("");
+      setGoalSentence("");
+      setProjectIdOverride(null);
+      setPeriodOverride(null);
+      setMetricOverride(null);
+      setTargetOverride("");
+      return;
     }
-  }, [isOpen]);
 
-  useEffect(() => {
-    if (!titleTouched) {
-      setTitle(generatedTitle);
+    if (initialGoal) {
+      setGoalSentence(initialGoal.title);
+      setProjectIdOverride(initialGoal.projectId);
+      setPeriodOverride(initialGoal.period);
+      setMetricOverride(initialGoal.metric ?? "none");
+      setTargetOverride(initialGoal.metric === "tasks_completed" ? String(initialGoal.target) : "");
+      return;
     }
-  }, [generatedTitle, titleTouched]);
+
+    setGoalSentence("");
+    setProjectIdOverride(null);
+    setPeriodOverride(null);
+    setMetricOverride(null);
+    setTargetOverride("");
+  }, [initialGoal, isOpen]);
 
   if (!isOpen) {
     return null;
   }
 
-  function submitGoal() {
-    const resolvedTitle = title.trim() || generatedTitle.trim();
+  const inferredDraft = inferGoalDraft(goalSentence, projects);
+  const resolvedPeriod = periodOverride ?? inferredDraft.period;
+  const resolvedProjectId = projectIdOverride ?? inferredDraft.projectId;
+  const resolvedMetric = resolveMetric(metricOverride, inferredDraft.metric);
+  const resolvedTarget = resolveTargetValue(
+    targetOverride,
+    resolvedMetric === "tasks_completed" ? inferredDraft.target : 1,
+  );
+  const canSubmit = inferredDraft.title.trim().length > 0;
+  const isEditing = Boolean(initialGoal);
 
-    if (!resolvedTitle) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canSubmit) {
       return;
     }
 
     onSubmit({
-      title: resolvedTitle,
-      description: description.trim(),
-      target: safeTarget,
-      period,
-      trackingMode,
-      metric,
-      projectId,
+      title: inferredDraft.title,
+      description: "",
+      target: resolvedTarget,
+      period: resolvedPeriod,
+      metric: resolvedMetric,
+      projectId: resolvedProjectId,
     });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    submitGoal();
-  }
-
   return (
-    <FloatingPanel ariaLabelledBy="new-goal-title" className="new-goal" onClose={onClose}>
+    <Modal ariaLabelledBy="new-goal-title" className="new-goal" onClose={onClose}>
       <form
         ref={formRef}
         className="new-goal__form"
         onSubmit={handleSubmit}
         onKeyDownCapture={(event) => {
-          if (event.key !== "Enter") {
-            return;
+          if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+            event.preventDefault();
+            formRef.current?.requestSubmit();
           }
-
-          if (event.target instanceof HTMLTextAreaElement) {
-            if (event.metaKey || event.ctrlKey) {
-              event.preventDefault();
-              formRef.current?.requestSubmit();
-            }
-
-            return;
-          }
-
-          event.preventDefault();
-          formRef.current?.requestSubmit();
         }}
       >
-        <header className="new-goal__header">
-          <h2 id="new-goal-title" className="new-goal__title">
-            New Goal
-          </h2>
-          <p className="new-goal__copy">Define a measurable goal for your workflow</p>
-        </header>
+        <Stack className="new-goal__body">
+          <header className="new-goal__header">
+            <h2 id="new-goal-title" className="new-goal__title">
+              {isEditing ? "Edit Goal" : "New Goal"}
+            </h2>
+            <p className="new-goal__copy">What do you want to accomplish?</p>
+          </header>
 
-        <section className="new-goal__section">
-          <div className="new-goal__section-header">
-            <p className="new-goal__section-title">How should progress be tracked?</p>
-          </div>
-          <div className="new-goal__tracking-options" role="radiogroup" aria-label="Goal tracking mode">
-            <button
-              type="button"
-              className={`new-goal__tracking-option ${
-                trackingMode === "automatic" ? "is-active" : ""
-              }`}
-              onClick={() => setTrackingMode("automatic")}
-              aria-pressed={trackingMode === "automatic"}
-            >
-              <span className="new-goal__tracking-option-title">Automatically from activity</span>
-              <span className="new-goal__tracking-option-copy">
-                Progress updates from completed tasks or journal entries.
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`new-goal__tracking-option ${
-                trackingMode === "manual" ? "is-active" : ""
-              }`}
-              onClick={() => {
-                setTrackingMode("manual");
-                setMetric("manual_units");
-              }}
-              aria-pressed={trackingMode === "manual"}
-            >
-              <span className="new-goal__tracking-option-title">Manually</span>
-              <span className="new-goal__tracking-option-copy">
-                Increment progress yourself when work is finished.
-              </span>
-            </button>
-          </div>
-          {trackingMode === "automatic" ? (
-            <label className="new-goal__field">
-              <span className="new-goal__label">Source</span>
-              <select
-                value={metric}
-                onChange={(event) => setMetric(event.target.value as GoalMetric)}
-                className="new-goal__select"
-                aria-label="Automatic goal source"
-              >
-                {automaticMetricOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </section>
-
-        <section className="new-goal__section">
-          <div className="new-goal__sentence" aria-label="Goal builder">
-            <span className="new-goal__sentence-text">I want to complete</span>
+          <FormField className="new-goal__sentence-field">
             <input
-              value={targetValue}
-              onChange={(event) => setTargetValue(event.target.value)}
+              value={goalSentence}
+              onChange={(event) => setGoalSentence(event.target.value)}
               className="new-goal__sentence-input"
-              inputMode="numeric"
-              aria-label="Goal target"
+              aria-label="Goal sentence"
+              placeholder="Describe the goal"
               autoFocus
             />
-            <span className="new-goal__sentence-text">
-              {trackingMode === "manual" ? "units per" : "tasks per"}
-            </span>
-            <select
-              value={period}
-              onChange={(event) => setPeriod(event.target.value as GoalPeriod)}
-              className="new-goal__sentence-select"
-              aria-label="Goal period"
-            >
+          </FormField>
+
+          <div className="new-goal__section">
+            <p className="new-goal__section-label">Metric</p>
+            <div className="new-goal__choice-row" aria-label="Metric options">
+              {metricOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`new-goal__choice ${
+                    (resolvedMetric ?? "none") === option.id ? "is-active" : ""
+                  }`}
+                  onClick={() => setMetricOverride(option.id)}
+                  aria-pressed={(resolvedMetric ?? "none") === option.id}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {resolvedMetric === "tasks_completed" ? (
+            <div className="new-goal__section">
+              <p className="new-goal__section-label">Tasks needed</p>
+              <input
+                value={targetOverride}
+                onChange={(event) => setTargetOverride(event.target.value)}
+                className="new-goal__target-input"
+                aria-label="Goal target"
+                type="number"
+                min="1"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder={String(inferredDraft.target)}
+              />
+            </div>
+          ) : null}
+
+          <div className="new-goal__section">
+            <p className="new-goal__section-label">Period</p>
+            <div className="new-goal__choice-row" aria-label="Period options">
               {periodOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label.toLowerCase()}
-                </option>
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`new-goal__choice ${resolvedPeriod === option.id ? "is-active" : ""}`}
+                  onClick={() => setPeriodOverride(option.id)}
+                  aria-pressed={resolvedPeriod === option.id}
+                >
+                  {option.label}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
-        </section>
 
-        <section className="new-goal__section">
-          <div className="new-goal__section-header">
-            <p className="new-goal__section-title">Scope</p>
-            <span className="new-goal__section-hint">(optional)</span>
-          </div>
-          <label className="new-goal__field">
-            <span className="new-goal__label">Project</span>
-            <select
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-              className="new-goal__select"
-              aria-label="Goal project"
-            >
-              <option value="">Select project</option>
-              {projects.map((availableProject) => (
-                <option key={availableProject.id} value={availableProject.id}>
-                  {availableProject.name}
-                </option>
+          <div className="new-goal__section">
+            <p className="new-goal__section-label">Project</p>
+            <div className="new-goal__choice-row" aria-label="Project options">
+              <button
+                type="button"
+                className={`new-goal__choice new-goal__project-choice ${
+                  resolvedProjectId === "" ? "is-active" : ""
+                }`}
+                onClick={() => setProjectIdOverride("")}
+                aria-pressed={resolvedProjectId === ""}
+              >
+                No project
+              </button>
+              {projects.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  className={`new-goal__choice new-goal__project-choice ${
+                    resolvedProjectId === project.id ? "is-active" : ""
+                  }`}
+                  onClick={() => setProjectIdOverride(project.id)}
+                  aria-pressed={resolvedProjectId === project.id}
+                >
+                  {project.name}
+                </button>
               ))}
-            </select>
-          </label>
-        </section>
+            </div>
+          </div>
+        </Stack>
 
-        <section className="new-goal__section">
-          <div className="new-goal__section-header">
-            <p className="new-goal__section-title">Details</p>
-          </div>
-          <label className="new-goal__field">
-            <input
-              value={title}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                setTitleTouched(true);
-              }}
-              className="new-goal__input"
-              placeholder={generatedTitle}
-              aria-label="Goal title"
-            />
-          </label>
-          <label className="new-goal__field">
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="new-goal__textarea"
-              placeholder="Optional description..."
-              aria-label="Goal description"
-            />
-          </label>
-        </section>
-
-        <section className="new-goal__section">
-          <div className="new-goal__section-header">
-            <p className="new-goal__section-title">Preview</p>
-          </div>
-          <div className="new-goal__preview">
-            {previewTitle}
-            {selectedProject ? ` - ${selectedProject.name}` : ""}
-          </div>
-        </section>
-        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+        <ActionBar className="new-goal__actions">
+          <button type="submit" className="new-goal__create" disabled={!canSubmit}>
+            {isEditing ? "Save" : "Create"}
+          </button>
+        </ActionBar>
       </form>
-    </FloatingPanel>
+    </Modal>
   );
 }
 
-function buildGoalSummary(targetValue: number, period: GoalPeriod, projectName: string) {
-  const normalizedProject = projectName.trim();
-  const periodLabel = period.slice(0, 1).toUpperCase() + period.slice(1);
-
-  if (normalizedProject) {
-    return `Complete ${targetValue} tasks per ${periodLabel} for ${normalizedProject}`;
+function resolveMetric(
+  metricOverride: GoalMetric | "none" | null,
+  inferredMetric?: GoalMetric,
+): GoalMetric | undefined {
+  if (metricOverride === "none") {
+    return undefined;
   }
 
-  return `Complete ${targetValue} tasks per ${periodLabel}`;
+  if (metricOverride === "tasks_completed") {
+    return "tasks_completed";
+  }
+
+  return inferredMetric;
+}
+
+function resolveTargetValue(targetOverride: string, inferredTarget: number) {
+  const trimmed = targetOverride.trim();
+
+  if (!trimmed) {
+    return inferredTarget;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return inferredTarget;
+  }
+
+  return parsed;
 }

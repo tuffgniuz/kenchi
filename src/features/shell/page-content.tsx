@@ -1,7 +1,9 @@
 import { viewTitles } from "../../app/navigation";
 import type { ViewId } from "../../app/types";
-import { Card } from "../../components/card";
-import type { Item } from "../../models/item";
+import { EmptyState } from "../../components/ui/empty-state";
+import { PageShell } from "../../components/ui/page-shell";
+import { Panel } from "../../components/ui/panel";
+import type { Item } from "../../models/workspace-item";
 import type { JournalEntry, JournalEntrySummary } from "../../models/journal";
 import type { Project } from "../../models/project";
 import { CaptureInboxPage } from "../inbox/capture-inbox-page";
@@ -26,6 +28,8 @@ type PageContentProps = {
   onSelectGoal: (goalId: string) => void;
   onUpdateGoal: (goalId: string, updates: Partial<Item>) => void;
   onDeleteGoal: (goalId: string) => void;
+  onEditGoal: (goalId: string) => void;
+  onCreateTaskForGoal: (goalId: string) => void;
   onSelectTask: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: Partial<Item>) => void;
   onDeleteTask: (taskId: string) => void;
@@ -55,6 +59,8 @@ export function PageContent({
   onSelectGoal,
   onUpdateGoal,
   onDeleteGoal,
+  onEditGoal,
+  onCreateTaskForGoal,
   onSelectTask,
   onUpdateTask,
   onDeleteTask,
@@ -69,15 +75,15 @@ export function PageContent({
 }: PageContentProps) {
   if (activeView === "dashboard") {
     return (
-      <section className="page page--dashboard" aria-label="Dashboard">
+      <PageShell ariaLabel="Dashboard" className="page--dashboard">
         <h1 className="home-greeting">{getGreetingForTime(new Date())}</h1>
         {todayJournalEntry.morningIntention.trim() ? (
-          <Card as="article" className="home-intention-card" aria-label="Today's intention">
+          <Panel as="article" className="home-intention-card app-card" aria-label="Today's intention">
             <p className="home-intention-card__label">Today&apos;s intention</p>
             <p className="home-intention-card__body">{todayJournalEntry.morningIntention}</p>
-          </Card>
+          </Panel>
         ) : null}
-      </section>
+      </PageShell>
     );
   }
 
@@ -106,6 +112,10 @@ export function PageContent({
         onSelectGoal={onSelectGoal}
         onUpdateGoal={onUpdateGoal}
         onDeleteGoal={onDeleteGoal}
+        onEditGoal={onEditGoal}
+        onUpdateTask={onUpdateTask}
+        onDeleteTask={onDeleteTask}
+        onCreateTaskForGoal={onCreateTaskForGoal}
       />
     );
   }
@@ -153,13 +163,17 @@ export function PageContent({
   }
 
   return (
-    <section className="page page--placeholder" aria-label={viewTitles[activeView]}>
-      <div className="page__header">
-        <p className="page__eyebrow">Workspace</p>
-        <h1 className="page__title">{viewTitles[activeView]}</h1>
-      </div>
-      <p className="page__placeholder-copy">{viewTitles[activeView]} will live here next.</p>
-    </section>
+    <PageShell
+      ariaLabel={viewTitles[activeView]}
+      eyebrow="Workspace"
+      title={viewTitles[activeView]}
+      className="page--placeholder"
+    >
+      <EmptyState
+        title={`${viewTitles[activeView]} will live here next`}
+        copy="This screen is still a placeholder."
+      />
+    </PageShell>
   );
 }
 

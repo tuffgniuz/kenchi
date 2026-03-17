@@ -6,6 +6,8 @@ type ThreeColumnLayoutProps = {
   centerClassName?: string;
   rightClassName?: string;
   centerOnly?: boolean;
+  leftCollapsed?: boolean;
+  rightCollapsed?: boolean;
   leftLabel?: string;
   centerLabel?: string;
   rightLabel?: string;
@@ -20,6 +22,8 @@ export function ThreeColumnLayout({
   centerClassName = "",
   rightClassName = "",
   centerOnly = false,
+  leftCollapsed = false,
+  rightCollapsed = false,
   leftLabel,
   centerLabel,
   rightLabel,
@@ -27,15 +31,20 @@ export function ThreeColumnLayout({
   center,
   right,
 }: ThreeColumnLayoutProps) {
+  const collapseLeft = centerOnly || leftCollapsed;
+  const collapseRight = centerOnly || rightCollapsed;
+
   return (
     <div
-      className={`three-column-layout ${centerOnly ? "is-center-only" : ""} ${className}`.trim()}
+      className={`three-column-layout ${centerOnly ? "is-center-only" : ""} ${
+        collapseLeft ? "is-left-collapsed" : ""
+      } ${collapseRight ? "is-right-collapsed" : ""} ${className}`.trim()}
     >
       <aside
         className={`three-column-layout__side three-column-layout__side--left ${
-          centerOnly ? "is-collapsed" : ""
+          collapseLeft ? "is-collapsed" : ""
         } ${leftClassName}`.trim()}
-        aria-hidden={centerOnly}
+        aria-hidden={collapseLeft}
         aria-label={leftLabel}
       >
         {left}
@@ -45,9 +54,9 @@ export function ThreeColumnLayout({
       </main>
       <aside
         className={`three-column-layout__side three-column-layout__side--right ${
-          centerOnly ? "is-collapsed" : ""
+          collapseRight ? "is-collapsed" : ""
         } ${rightClassName}`.trim()}
-        aria-hidden={centerOnly}
+        aria-hidden={collapseRight}
         aria-label={rightLabel}
       >
         {right}

@@ -1,11 +1,9 @@
-export type TaskStatus = "inbox" | "today" | "to do" | "upcoming" | "done";
-
 export type TaskPriority = "low" | "medium" | "high" | "urgent" | "";
 
 export type TaskItem = {
   id: string;
   title: string;
-  status: TaskStatus;
+  isCompleted: boolean;
   dueDate: string;
   priority: TaskPriority;
   project: string;

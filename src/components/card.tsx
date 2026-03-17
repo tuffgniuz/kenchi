@@ -15,16 +15,14 @@ export function Card<T extends ElementType = "div">({
   ...rest
 }: CardProps<T>) {
   const Component = as ?? "div";
-  const resolvedClassName = [
-    "app-card",
-    interactive ? "app-card--interactive" : "",
-    className ?? "",
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   return (
-    <Component className={resolvedClassName} {...rest}>
+    <Component
+      className={`app-card ui-panel ${interactive ? "ui-panel--interactive" : ""} ${
+        className ?? ""
+      }`.trim()}
+      {...rest}
+    >
       {children}
     </Component>
   );

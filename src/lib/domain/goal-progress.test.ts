@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Item } from "../../models/item";
-import type { JournalEntrySummary } from "../../models/journal";
+import type { Item } from "../../models/workspace-item";
 import { resolveGoalProgress, resolveGoalProgressForDate } from "./goal-progress";
 
 function createItem(overrides: Partial<Item> = {}): Item {
@@ -15,7 +14,7 @@ function createItem(overrides: Partial<Item> = {}): Item {
     updatedAt: "",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -25,7 +24,6 @@ function createItem(overrides: Partial<Item> = {}): Item {
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     ...overrides,
   };
 }
@@ -39,21 +37,21 @@ describe("goal progress", () => {
       createItem({
         id: "task-1",
         kind: "task",
-        taskStatus: "done",
+        isCompleted: true,
         completedAt: "2026-03-16",
         projectId: "project-1",
       }),
       createItem({
         id: "task-2",
         kind: "task",
-        taskStatus: "done",
+        isCompleted: true,
         completedAt: "2026-03-10",
         projectId: "project-1",
       }),
       createItem({
         id: "task-3",
         kind: "task",
-        taskStatus: "done",
+        isCompleted: true,
         completedAt: "2026-03-16",
         projectId: "project-2",
       }),
@@ -72,20 +70,20 @@ describe("goal progress", () => {
 
   it("keeps all explicitly linked tasks visible while counting only completed ones", () => {
     const goal = createItem({
-      goalTarget: 99,
+      goalTarget: 5,
       goalScope: { taskIds: ["task-1", "task-2"] },
     });
     const items = [
       createItem({
         id: "task-1",
         kind: "task",
-        taskStatus: "done",
+        isCompleted: true,
         completedAt: "2026-03-16",
       }),
       createItem({
         id: "task-2",
         kind: "task",
-        taskStatus: "today",
+        isCompleted: false,
       }),
     ];
 
@@ -96,46 +94,17 @@ describe("goal progress", () => {
     });
 
     expect(progress.completedCount).toBe(1);
-    expect(progress.progressDenominator).toBe(2);
+    expect(progress.progressDenominator).toBe(5);
     expect(progress.linkedTasks).toHaveLength(2);
   });
 
-  it("counts journal entries for automatic journal goals", () => {
+  it("allows a metric-less goal to be marked complete for the current period", () => {
     const goal = createItem({
-      goalMetric: "journal_entries_written",
-      goalTarget: 2,
-      goalPeriod: "monthly",
-    });
-    const journalSummaries: JournalEntrySummary[] = [
-      { date: "2026-03-16", preview: "one" },
-      { date: "2026-03-14", preview: "two" },
-      { date: "2026-02-28", preview: "other month" },
-    ];
-
-    const progress = resolveGoalProgress(goal, {
-      items: [],
-      journalSummaries,
-      todayDate: "2026-03-16",
-    });
-
-    expect(progress.completedCount).toBe(2);
-    expect(resolveGoalProgressForDate(goal, {
-      items: [],
-      journalSummaries,
-      todayDate: "2026-03-16",
-    }, "2026-03-14")).toBe(1);
-  });
-
-  it("sums manual progress entries across the active period", () => {
-    const goal = createItem({
-      goalTrackingMode: "manual",
-      goalMetric: "manual_units",
-      goalTarget: 5,
-      goalPeriod: "monthly",
+      goalMetric: undefined,
+      goalTarget: 1,
+      goalPeriod: "weekly",
       goalProgressByDate: {
-        "2026-03-15": 2,
         "2026-03-16": 1,
-        "2026-03-01": 4,
       },
     });
 
@@ -145,11 +114,11 @@ describe("goal progress", () => {
       todayDate: "2026-03-16",
     });
 
-    expect(progress.completedCount).toBe(5);
+    expect(progress.completedCount).toBe(1);
     expect(resolveGoalProgressForDate(goal, {
       items: [],
       journalSummaries: [],
       todayDate: "2026-03-16",
-    }, "2026-03-15")).toBe(2);
+    }, "2026-03-16")).toBe(1);
   });
 });

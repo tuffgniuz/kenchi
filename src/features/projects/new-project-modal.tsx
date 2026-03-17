@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { FloatingPanel } from "../../components/floating-panel";
+import { FormField } from "../../components/ui/form-field";
+import { Modal } from "../../components/ui/modal";
 
 export function NewProjectModal({
   isOpen,
@@ -43,39 +44,43 @@ export function NewProjectModal({
   }
 
   return (
-    <FloatingPanel ariaLabelledBy="new-project-title" className="new-task" onClose={onClose}>
+    <Modal ariaLabelledBy="new-project-title" className="new-task" onClose={onClose}>
       <form className="new-task__form" onSubmit={handleSubmit}>
         <p id="new-project-title" className="new-task__title">
           New project
         </p>
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              submitProject();
-            }
-          }}
-          className="new-task__input"
-          placeholder="Name"
-          aria-label="Project name"
-          autoFocus
-        />
-        <textarea
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submitProject();
-            }
-          }}
-          className="new-task__textarea"
-          placeholder="Description"
-          aria-label="Project description"
-        />
+        <FormField label="Name">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                submitProject();
+              }
+            }}
+            className="modal-form__input ui-input"
+            placeholder="Name"
+            aria-label="Project name"
+            autoFocus
+          />
+        </FormField>
+        <FormField label="Description">
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                submitProject();
+              }
+            }}
+            className="modal-form__textarea ui-input"
+            placeholder="Description"
+            aria-label="Project description"
+          />
+        </FormField>
       </form>
-    </FloatingPanel>
+    </Modal>
   );
 }

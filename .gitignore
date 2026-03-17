@@ -33,3 +33,6 @@ src-tauri/gen
 *.db
 *.db-shm
 *.db-wal
+
+# Local agent notes
+codex-notes.md

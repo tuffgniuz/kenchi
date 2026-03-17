@@ -1,4 +1,4 @@
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { Project } from "../../models/project";
 
 function hasProjectScope(item: Item) {

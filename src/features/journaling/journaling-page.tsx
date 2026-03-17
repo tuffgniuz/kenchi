@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RightRailColumn } from "../../components/right-rail-column";
 import { ThreeColumnLayout } from "../../components/three-column-layout";
+import { FormField } from "../../components/ui/form-field";
+import { PageShell } from "../../components/ui/page-shell";
+import { useWindowWidth } from "../../hooks/use-window-width";
 import type { JournalEntry, JournalEntrySummary } from "../../models/journal";
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 
 type JournalingPageProps = {
   todayDate: string;
@@ -23,6 +26,7 @@ export function JournalingPage({
   onSelectDate,
   onUpdateEntry,
 }: JournalingPageProps) {
+  const windowWidth = useWindowWidth();
   const [intentionDraft, setIntentionDraft] = useState(entry.morningIntention);
   const [reflectionDraft, setReflectionDraft] = useState(entry.reflectionEntry);
   const dayListRef = useRef<HTMLDivElement | null>(null);
@@ -30,6 +34,9 @@ export function JournalingPage({
     () => buildJournalDayOptions(todayDate, selectedDate, entries),
     [entries, selectedDate, todayDate],
   );
+  const layoutMode = resolveResponsiveMode(windowWidth);
+  const showInlineDays = layoutMode !== "wide";
+  const showRightRail = layoutMode !== "narrow";
 
   useEffect(() => {
     setIntentionDraft(entry.morningIntention);
@@ -110,38 +117,24 @@ export function JournalingPage({
   }, [dayOptions, onSelectDate, selectedDate]);
 
   return (
-    <section className="page page--journaling" aria-label="Journaling">
+    <PageShell ariaLabel="Journaling" className="page--journaling">
       <ThreeColumnLayout
         className="journal-console"
         leftClassName="journal-nav"
         centerClassName="journal-daily"
         rightClassName="journal-context"
+        leftCollapsed={showInlineDays}
+        rightCollapsed={!showRightRail}
         leftLabel="Journal days"
         centerLabel="Journal entry"
         rightLabel="Journal context"
         left={
-          <>
-          <div className="journal-nav__header">
-            <p className="page__eyebrow">Days</p>
-          </div>
-          <div className="journal-nav__list" ref={dayListRef} tabIndex={0}>
-            {dayOptions.map((option) => (
-              <button
-                key={option.date}
-                type="button"
-                className={`journal-nav__day ${
-                  option.date === selectedDate ? "is-active" : ""
-                }`}
-                onClick={() => onSelectDate(option.date)}
-              >
-                <span className="journal-nav__day-label">{option.label}</span>
-                <span className="journal-nav__day-preview">
-                  {option.preview || "No entry yet"}
-                </span>
-              </button>
-            ))}
-          </div>
-          </>
+          <JournalDayList
+            dayOptions={dayOptions}
+            selectedDate={selectedDate}
+            onSelectDate={onSelectDate}
+            listRef={dayListRef}
+          />
         }
         center={
           <>
@@ -150,6 +143,16 @@ export function JournalingPage({
               <p className="page__eyebrow">Today</p>
               <h1 className="journal-page__date">{formatJournalDate(entry.date)}</h1>
             </div>
+            {showInlineDays ? (
+              <div className="journal-inline-days" data-testid="journal-inline-days">
+                <JournalDayList
+                  dayOptions={dayOptions}
+                  selectedDate={selectedDate}
+                  onSelectDate={onSelectDate}
+                  inline
+                />
+              </div>
+            ) : null}
           </header>
 
           <div className="journal-stack">
@@ -174,7 +177,59 @@ export function JournalingPage({
           <RightRailColumn items={items} journalSummaries={entries} todayDate={todayDate} />
         }
       />
-    </section>
+      {layoutMode === "narrow" ? (
+        <section
+          className="journal-stacked-context"
+          aria-label="Journal context"
+          data-testid="journal-stacked-context"
+        >
+          <RightRailColumn items={items} journalSummaries={entries} todayDate={todayDate} />
+        </section>
+      ) : null}
+    </PageShell>
+  );
+}
+
+function JournalDayList({
+  dayOptions,
+  selectedDate,
+  onSelectDate,
+  listRef,
+  inline = false,
+}: {
+  dayOptions: Array<{ date: string; label: string; preview: string }>;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  listRef?: React.RefObject<HTMLDivElement | null>;
+  inline?: boolean;
+}) {
+  return (
+    <>
+      <div className="journal-nav__header">
+        <p className="page__eyebrow">Days</p>
+      </div>
+      <div
+        className={`journal-nav__list ${inline ? "journal-nav__list--inline" : ""}`.trim()}
+        ref={listRef}
+        tabIndex={inline ? undefined : 0}
+      >
+        {dayOptions.map((option) => (
+          <button
+            key={option.date}
+            type="button"
+            className={`journal-nav__day ${option.date === selectedDate ? "is-active" : ""} ${
+              inline ? "journal-nav__day--inline" : ""
+            }`.trim()}
+            onClick={() => onSelectDate(option.date)}
+          >
+            <span className="journal-nav__day-label">{option.label}</span>
+            <span className="journal-nav__day-preview">
+              {option.preview || "No entry yet"}
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -192,16 +247,17 @@ function JournalEntrySection({
   ariaLabel: string;
 }) {
   return (
-    <section className="journal-section journal-section--entry">
+    <section className="journal-section journal-section--entry ui-panel">
       <div className="journal-entry-editor">
-        <p className="journal-entry-editor__label">{indicator}</p>
+        <FormField label={indicator}>
         <textarea
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
-          className="journal-entry-editor__input"
+          className="journal-entry-editor__input ui-input"
           placeholder={placeholder}
           aria-label={ariaLabel}
         />
+        </FormField>
       </div>
     </section>
   );
@@ -234,6 +290,18 @@ function buildJournalDayOptions(
     label: labelForJournalNavDate(date),
     preview: summariesByDate.get(date) ?? "",
   }));
+}
+
+function resolveResponsiveMode(windowWidth: number): "wide" | "medium" | "narrow" {
+  if (windowWidth < 900) {
+    return "narrow";
+  }
+
+  if (windowWidth < 1280) {
+    return "medium";
+  }
+
+  return "wide";
 }
 
 function moveSelectedDate(

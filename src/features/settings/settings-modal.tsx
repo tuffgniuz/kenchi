@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FolderIcon, PaletteIcon, UserIcon } from "../../app/icons";
+import { ActionBar } from "../../components/ui/action-bar";
+import { FormField } from "../../components/ui/form-field";
+import { Modal } from "../../components/ui/modal";
 import type { ThemeColorToken } from "../../theme/theme-types";
 
 type SettingsModalProps = {
@@ -60,13 +63,19 @@ export function SettingsModal({
   onConfirm,
 }: SettingsModalProps) {
   const [accentMenuOpen, setAccentMenuOpen] = useState(false);
+  const [profileImageLabel, setProfileImageLabel] = useState("No image selected");
   const accentMenuRef = useRef<HTMLDivElement | null>(null);
+  const profileImageInputRef = useRef<HTMLInputElement | null>(null);
   const selectedAccent =
     accentOptions.find((option) => option.id === pendingAccentToken) ?? accentOptions[0];
 
   useEffect(() => {
     setAccentMenuOpen(false);
   }, [activeSection, pendingThemeId, pendingAccentToken]);
+
+  useEffect(() => {
+    setProfileImageLabel(pendingProfilePicture ? "Image selected" : "No image selected");
+  }, [pendingProfilePicture]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -91,14 +100,7 @@ export function SettingsModal({
   }, []);
 
   return (
-    <div className="settings-modal__backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Modal className="settings-modal" ariaLabelledBy="settings-title" onClose={onClose}>
         <aside className="settings-modal__sidebar">
           <div className="settings-modal__sidebar-top">
             <p id="settings-title" className="settings-modal__eyebrow">
@@ -279,50 +281,65 @@ export function SettingsModal({
                 </div>
 
                 <div className="profile-settings__fields">
-                  <label className="vault-settings__field">
-                    <span className="vault-settings__label">Name</span>
+                  <FormField label="Name" className="vault-settings__field">
                     <input
                       type="text"
                       value={pendingProfileName}
                       onChange={(event) => onProfileNameChange(event.target.value)}
-                      className="vault-settings__input"
+                      className="vault-settings__input ui-input"
                       placeholder="Your name"
                       aria-label="Profile name"
                     />
-                  </label>
+                  </FormField>
 
-                  <label className="vault-settings__field">
-                    <span className="vault-settings__label">Profile picture</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="profile-settings__file-input"
-                      onChange={(event) => {
-                        const [file] = Array.from(event.target.files ?? []);
+                  <FormField label="Profile picture" className="vault-settings__field">
+                    <div className="profile-settings__file-picker">
+                      <input
+                        ref={profileImageInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="profile-settings__file-input"
+                        aria-label="Profile picture"
+                        onChange={(event) => {
+                          const [file] = Array.from(event.target.files ?? []);
 
-                        if (!file) {
-                          return;
-                        }
-
-                        const reader = new FileReader();
-
-                        reader.onload = () => {
-                          if (typeof reader.result === "string") {
-                            onProfilePictureChange(reader.result);
+                          if (!file) {
+                            return;
                           }
-                        };
 
-                        reader.readAsDataURL(file);
-                        event.target.value = "";
-                      }}
-                    />
-                  </label>
+                          setProfileImageLabel(file.name);
+
+                          const reader = new FileReader();
+
+                          reader.onload = () => {
+                            if (typeof reader.result === "string") {
+                              onProfilePictureChange(reader.result);
+                            }
+                          };
+
+                          reader.readAsDataURL(file);
+                          event.target.value = "";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="profile-settings__file-button"
+                        onClick={() => profileImageInputRef.current?.click()}
+                      >
+                        Select image
+                      </button>
+                      <span className="profile-settings__file-name">{profileImageLabel}</span>
+                    </div>
+                  </FormField>
 
                   {pendingProfilePicture ? (
                     <button
                       type="button"
                       className="profile-settings__clear"
-                      onClick={() => onProfilePictureChange("")}
+                      onClick={() => {
+                        onProfilePictureChange("");
+                        setProfileImageLabel("No image selected");
+                      }}
                     >
                       Remove picture
                     </button>
@@ -340,17 +357,16 @@ export function SettingsModal({
               </div>
 
               <div className="vault-settings">
-                <label className="vault-settings__field">
-                  <span className="vault-settings__label">Vault path</span>
+                <FormField label="Vault path" className="vault-settings__field">
                   <input
                     type="text"
                     value={pendingVaultPath}
                     onChange={(event) => onVaultPathChange(event.target.value)}
-                    className="vault-settings__input"
+                    className="vault-settings__input ui-input"
                     placeholder="/path/to/kenchi-vault"
                     aria-label="Vault path"
                   />
-                </label>
+                </FormField>
                 <button
                   type="button"
                   className="vault-settings__browse"
@@ -368,16 +384,17 @@ export function SettingsModal({
           )}
 
           <div className="settings-modal__footer">
-            <button
-              type="button"
-              className="settings-modal__confirm"
-              onClick={() => void onConfirm()}
-            >
-              Confirm
-            </button>
+            <ActionBar>
+              <button
+                type="button"
+                className="settings-modal__confirm"
+                onClick={() => void onConfirm()}
+              >
+                Confirm
+              </button>
+            </ActionBar>
           </div>
         </div>
-      </section>
-    </div>
+    </Modal>
   );
 }

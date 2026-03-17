@@ -1,4 +1,4 @@
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { JournalEntrySummary } from "../../models/journal";
 import { resolveGoalProgress } from "./goal-progress";
 
@@ -13,7 +13,7 @@ export function buildJournalContext(
       (item) =>
         item.kind === "task" &&
         item.state !== "deleted" &&
-        (item.dueDate === selectedDate || item.taskStatus === "today"),
+        item.dueDate === selectedDate,
     )
     .map((item) => item.title)
     .slice(0, 5);

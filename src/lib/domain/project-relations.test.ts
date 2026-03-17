@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { Project } from "../../models/project";
 import {
   attachProjectIdsFromNames,
@@ -36,7 +36,7 @@ function createTask(overrides: Partial<Item> = {}): Item {
     updatedAt: "",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -46,7 +46,6 @@ function createTask(overrides: Partial<Item> = {}): Item {
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     ...overrides,
   };
 }

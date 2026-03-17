@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { RightRailColumn } from "./right-rail-column";
-import type { Item } from "../models/item";
+import type { Item } from "../models/workspace-item";
 
 function createItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -15,7 +15,7 @@ function createItem(overrides: Partial<Item> = {}): Item {
     updatedAt: "",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -25,7 +25,6 @@ function createItem(overrides: Partial<Item> = {}): Item {
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     ...overrides,
   };
 }
@@ -40,9 +39,8 @@ describe("RightRailColumn", () => {
             kind: "goal",
             title: "Finish three tasks",
             goalPeriod: "daily",
-            goalTrackingMode: "manual",
-            goalMetric: "manual_units",
-            goalTarget: 3,
+            goalMetric: undefined,
+            goalTarget: 1,
           }),
         ]}
         journalSummaries={[]}
@@ -52,5 +50,28 @@ describe("RightRailColumn", () => {
 
     expect(screen.getByRole("heading", { name: "Goals" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Tasks" })).not.toBeInTheDocument();
+  });
+
+  it("shows goal project metadata in the right rail", () => {
+    render(
+      <RightRailColumn
+        items={[
+          createItem({
+            id: "goal-1",
+            kind: "goal",
+            title: "Finish three tasks",
+            project: "Kenchi",
+            goalPeriod: "daily",
+            goalMetric: "tasks_completed",
+            goalTarget: 3,
+            goalScope: { projectId: "project-1" },
+          }),
+        ]}
+        journalSummaries={[]}
+        todayDate="2026-03-17"
+      />,
+    );
+
+    expect(screen.getByText("Kenchi")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import { buildRightRailContext } from "./right-rail-context";
 
 function createItem(overrides: Partial<Item> = {}): Item {
@@ -14,7 +14,7 @@ function createItem(overrides: Partial<Item> = {}): Item {
     updatedAt: "",
     tags: [],
     project: "",
-    taskStatus: "inbox",
+    isCompleted: false,
     priority: "",
     dueDate: "",
     completedAt: "",
@@ -24,7 +24,6 @@ function createItem(overrides: Partial<Item> = {}): Item {
     goalProgress: 0,
     goalProgressByDate: {},
     goalPeriod: "weekly",
-    goalTrackingMode: "automatic",
     ...overrides,
   };
 }
@@ -32,11 +31,11 @@ function createItem(overrides: Partial<Item> = {}): Item {
 describe("buildRightRailContext", () => {
   it("counts remaining tasks for today and returns active daily goals with progress", () => {
     const items = [
-      createItem({ id: "task-1", title: "Task today", taskStatus: "today" }),
+      createItem({ id: "task-1", title: "Task today", dueDate: "2026-03-17" }),
       createItem({ id: "task-2", title: "Due today", dueDate: "2026-03-17" }),
-      createItem({ id: "task-3", title: "Done today", taskStatus: "done", dueDate: "2026-03-17" }),
+      createItem({ id: "task-3", title: "Done today", isCompleted: true, dueDate: "2026-03-17" }),
       createItem({ id: "goal-1", kind: "goal", title: "Close two tasks", goalPeriod: "daily", goalTarget: 2 }),
-      createItem({ id: "done-1", title: "Done one", taskStatus: "done", completedAt: "2026-03-17" }),
+      createItem({ id: "done-1", title: "Done one", isCompleted: true, completedAt: "2026-03-17" }),
       createItem({ id: "goal-2", kind: "goal", title: "Weekly goal", goalPeriod: "weekly" }),
     ];
 

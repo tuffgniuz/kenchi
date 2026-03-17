@@ -1,10 +1,11 @@
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { JournalEntrySummary } from "../../models/journal";
 import { resolveGoalProgress } from "./goal-progress";
 
 export type RightRailGoal = {
   id: string;
   title: string;
+  projectLabel: string;
   completedCount: number;
   progressDenominator: number;
   progressPercent: number;
@@ -24,8 +25,8 @@ export function buildRightRailContext(
     (item) =>
       item.kind === "task" &&
       item.state !== "deleted" &&
-      item.taskStatus !== "done" &&
-      (item.dueDate === todayDate || item.taskStatus === "today"),
+      !item.isCompleted &&
+      item.dueDate === todayDate,
   ).length;
 
   const goals = items
@@ -40,6 +41,7 @@ export function buildRightRailContext(
       return {
         id: goal.id,
         title: goal.title,
+        projectLabel: goal.project,
         completedCount: progress.completedCount,
         progressDenominator: progress.progressDenominator,
         progressPercent: progress.progressPercent,

@@ -1,4 +1,4 @@
-import type { Item } from "../../models/item";
+import type { Item } from "../../models/workspace-item";
 import type { JournalEntrySummary } from "../../models/journal";
 
 type GoalProgressContext = {
@@ -11,7 +11,7 @@ export type GoalProgressSnapshot = {
   completedCount: number;
   progressDenominator: number;
   progressPercent: number;
-  isManual: boolean;
+  isDirectCompletion: boolean;
   linkedTasks: Item[];
 };
 
@@ -19,9 +19,9 @@ export function resolveGoalProgress(
   goal: Item,
   context: GoalProgressContext,
 ): GoalProgressSnapshot {
-  const rawCompletedCount = goal.goalTrackingMode === "manual"
-    ? getManualPeriodProgress(goal, context.todayDate)
-    : getAutomaticPeriodProgress(goal, context);
+  const rawCompletedCount = goal.goalMetric === "tasks_completed"
+    ? getAutomaticPeriodProgress(goal, context)
+    : getDirectCompletionProgress(goal, context.todayDate);
   const completedCount = Math.max(
     0,
     Math.min(rawCompletedCount, getProgressDenominator(goal)),
@@ -38,7 +38,7 @@ export function resolveGoalProgress(
       progressDenominator > 0
         ? Math.min(100, Math.max(0, (completedCount / progressDenominator) * 100))
         : 0,
-    isManual: goal.goalTrackingMode === "manual",
+    isDirectCompletion: !goal.goalMetric,
     linkedTasks,
   };
 }
@@ -48,29 +48,19 @@ export function resolveGoalProgressForDate(
   context: GoalProgressContext,
   date: string,
 ) {
-  if (goal.goalTrackingMode === "manual") {
-    return getManualProgressForDate(goal, date, context.todayDate);
+  if (!goal.goalMetric) {
+    return getDirectCompletionForDate(goal, date, context.todayDate);
   }
 
   switch (goal.goalMetric) {
     case "tasks_completed":
       return getMatchingTasks(goal, context.items).filter((task) => task.completedAt === date).length;
-    case "journal_entries_written":
-      return context.journalSummaries.some((entry) => entry.date === date) ? 1 : 0;
     default:
       return 0;
   }
 }
 
 function getProgressDenominator(goal: Item) {
-  if (
-    goal.goalTrackingMode === "automatic" &&
-    goal.goalMetric === "tasks_completed" &&
-    goal.goalScope?.taskIds?.length
-  ) {
-    return goal.goalScope.taskIds.length;
-  }
-
   return goal.goalTarget;
 }
 
@@ -80,38 +70,34 @@ function getAutomaticPeriodProgress(goal: Item, context: GoalProgressContext) {
       return getMatchingTasks(goal, context.items).filter((task) =>
         isDateInCurrentPeriod(task.completedAt ?? "", context.todayDate, goal.goalPeriod),
       ).length;
-    case "journal_entries_written":
-      return context.journalSummaries.filter((entry) =>
-        isDateInCurrentPeriod(entry.date, context.todayDate, goal.goalPeriod),
-      ).length;
     default:
       return 0;
   }
 }
 
-function getManualPeriodProgress(goal: Item, todayDate: string) {
+function getDirectCompletionProgress(goal: Item, todayDate: string) {
   const progressByDate = goal.goalProgressByDate ?? {};
   const matchingEntries = Object.entries(progressByDate).filter(([date]) =>
     isDateInCurrentPeriod(date, todayDate, goal.goalPeriod),
   );
-  const summedProgress = matchingEntries.reduce((total, [, value]) => total + value, 0);
+  const completedInPeriod = matchingEntries.some(([, value]) => value > 0);
 
-  if (summedProgress > 0) {
-    return summedProgress;
+  if (completedInPeriod) {
+    return 1;
   }
 
-  return getManualProgressForDate(goal, todayDate, todayDate);
+  return getDirectCompletionForDate(goal, todayDate, todayDate);
 }
 
-function getManualProgressForDate(goal: Item, date: string, todayDate: string) {
+function getDirectCompletionForDate(goal: Item, date: string, todayDate: string) {
   const progressByDate = goal.goalProgressByDate ?? {};
 
   if (date in progressByDate) {
-    return Math.max(0, Math.min(progressByDate[date] ?? 0, goal.goalTarget));
+    return progressByDate[date] && progressByDate[date] > 0 ? 1 : 0;
   }
 
   if (date === todayDate) {
-    return Math.max(0, Math.min(goal.goalProgress ?? 0, goal.goalTarget));
+    return goal.goalProgress && goal.goalProgress > 0 ? 1 : 0;
   }
 
   return 0;
@@ -122,11 +108,11 @@ function getMatchingTasks(goal: Item, items: Item[]) {
   const scopedTaskIds = new Set(goal.goalScope?.taskIds ?? []);
 
   if (scopedTasks.length > 0) {
-    return scopedTasks.filter((item) => item.taskStatus === "done");
+    return scopedTasks.filter((item) => item.isCompleted);
   }
 
   return items.filter((item) => {
-    if (item.kind !== "task" || item.state === "deleted" || item.taskStatus !== "done") {
+    if (item.kind !== "task" || item.state === "deleted" || !item.isCompleted) {
       return false;
     }
 
