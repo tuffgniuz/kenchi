@@ -35,7 +35,7 @@ describe("buildInboxCaptureViews", () => {
     const projects: Project[] = [
       {
         id: "project-1",
-        name: "Kenchi",
+        name: "Lira",
         description: "",
         boardLanes: defaultProjectBoardLanes("project-1"),
         createdAt: "2026-03-20T00:00:00.000Z",
@@ -71,7 +71,7 @@ describe("buildInboxCaptureViews", () => {
       expect.objectContaining({
         id: "capture-1",
         text: "Build a browser",
-        projectName: "Kenchi",
+        projectName: "Lira",
       }),
     ]);
   });

@@ -97,7 +97,7 @@ function createTask(overrides: Partial<Item> = {}): Item {
 function createProject(overrides: Partial<Project> = {}): Project {
   return {
     id: "project-1",
-    name: "Kenchi",
+    name: "Lira",
     description: "",
     boardLanes: defaultProjectBoardLanes("project-1"),
     createdAt: "2026-03-21T00:00:00.000Z",
@@ -143,7 +143,7 @@ describe("TaskDetailPage", () => {
       const heading = screen.getByRole("heading", { name: "Build task detail page" });
       expect(heading).toBeInTheDocument();
       expect(heading.closest(".task-detail-page__content")).not.toBeNull();
-      expect(screen.getByText("Open • Kenchi")).toBeInTheDocument();
+      expect(screen.getByText("Open • Lira")).toBeInTheDocument();
 
       fireEvent.change(screen.getByRole("textbox", { name: "Task description" }), {
         target: { value: "Ship the dedicated detail page." },

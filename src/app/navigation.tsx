@@ -7,7 +7,36 @@ import {
   TargetIcon,
 } from "./icons";
 
-export const vaultPathStorageKey = "kenchi.vault-path";
+export const vaultPathStorageKey = "lira.vault-path";
+
+function findStoredValueBySuffix(storage: Storage, suffix: string) {
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+
+    if (!key?.endsWith(suffix)) {
+      continue;
+    }
+
+    const value = storage.getItem(key)?.trim();
+
+    if (value) {
+      storage.setItem(vaultPathStorageKey, value);
+      return value;
+    }
+  }
+
+  return null;
+}
+
+export function readStoredVaultPath(storage: Storage) {
+  const currentValue = storage.getItem(vaultPathStorageKey)?.trim();
+
+  if (currentValue) {
+    return currentValue;
+  }
+
+  return findStoredValueBySuffix(storage, ".vault-path");
+}
 
 export const navigationItems: NavItem[] = [
   { id: "inbox", label: "Capture Inbox", icon: InboxIcon },

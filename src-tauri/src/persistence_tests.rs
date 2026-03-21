@@ -25,7 +25,7 @@ fn test_db() -> Database {
 fn sample_project() -> Project {
     Project {
         id: "project-1".into(),
-        name: "Kenchi".into(),
+        name: "Lira".into(),
         description: Some("Primary workspace".into()),
         status: ProjectStatus::Active,
         board_lanes: vec![
@@ -626,7 +626,7 @@ fn loads_default_project_board_lanes_for_legacy_projects_without_saved_lanes() {
             );
 
             INSERT INTO projects (id, name, description, status, created_at, updated_at)
-            VALUES ('project-1', 'Kenchi', 'Primary workspace', 'active', '2026-03-17T08:00:00Z', '2026-03-17T08:00:00Z');
+            VALUES ('project-1', 'Lira', 'Primary workspace', 'active', '2026-03-17T08:00:00Z', '2026-03-17T08:00:00Z');
             ",
         )
         .expect("legacy project schema should create");

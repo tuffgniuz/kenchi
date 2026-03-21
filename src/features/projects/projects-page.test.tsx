@@ -7,7 +7,7 @@ import type { Project } from "../../models/project";
 function createProject(overrides: Partial<Project> = {}): Project {
   return {
     id: "project-1",
-    name: "Kenchi",
+    name: "Lira",
     description: "Build the workflow shell.",
     boardLanes: [
       { id: "project-1-lane-to-do", name: "To Do", order: 0 },
@@ -110,7 +110,7 @@ describe("ProjectsPage board", () => {
       ],
     });
 
-    expect(screen.getByRole("heading", { name: "Kenchi" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Lira" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show project detail in three-column layout" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Projects list")).not.toBeInTheDocument();
 

@@ -363,7 +363,7 @@ export function SettingsModal({
                     value={pendingVaultPath}
                     onChange={(event) => onVaultPathChange(event.target.value)}
                     className="vault-settings__input ui-input"
-                    placeholder="/path/to/kenchi-vault"
+                    placeholder="/path/to/lira-vault"
                     aria-label="Vault path"
                   />
                 </FormField>

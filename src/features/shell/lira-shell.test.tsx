@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "../../theme/theme-provider";
 import { vaultPathStorageKey } from "../../app/navigation";
-import { KenchiShell } from "./kenchi-shell";
+import { LiraShell } from "./lira-shell";
 import type { WorkspaceItem } from "../../models/workspace-item";
 import type { Project } from "../../models/project";
 import { defaultProjectBoardLanes } from "../../models/project-board";
@@ -115,7 +115,7 @@ function createWorkspaceItem(overrides: Partial<WorkspaceItem> = {}): WorkspaceI
 function renderShell() {
   return render(
     <ThemeProvider>
-      <KenchiShell />
+      <LiraShell />
     </ThemeProvider>,
   );
 }
@@ -146,17 +146,17 @@ function pressSequence(sequence: string[]) {
   }
 }
 
-describe("KenchiShell list shortcuts", () => {
+describe("LiraShell list shortcuts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     installLocalStorage({
-      [vaultPathStorageKey]: "/tmp/kenchi-test-vault",
+      [vaultPathStorageKey]: "/tmp/lira-test-vault",
     });
 
     const projects: Project[] = [
       {
         id: "project-1",
-        name: "Kenchi",
+        name: "Lira",
         description: "Main app",
         boardLanes: defaultProjectBoardLanes("project-1"),
         createdAt: "2026-03-17T00:00:00.000Z",
@@ -164,7 +164,7 @@ describe("KenchiShell list shortcuts", () => {
       },
     ];
 
-    mocks.initializeVault.mockResolvedValue("/tmp/kenchi-test-vault");
+    mocks.initializeVault.mockResolvedValue("/tmp/lira-test-vault");
     mocks.loadWorkspaceItems.mockResolvedValue([
       createWorkspaceItem({
         id: "capture-1",
@@ -209,7 +209,7 @@ describe("KenchiShell list shortcuts", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
-    expect(await screen.findByRole("heading", { name: "Kenchi" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lira" })).toBeInTheDocument();
 
     pressSequence([" ", "l", "p"]);
     expect(await screen.findByRole("textbox", { name: "Projects" })).toHaveAttribute(
@@ -248,7 +248,7 @@ describe("KenchiShell list shortcuts", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
-    expect(await screen.findByRole("heading", { name: "Kenchi" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lira" })).toBeInTheDocument();
 
     pressSequence([" ", "n", "p"]);
 
@@ -302,7 +302,7 @@ describe("KenchiShell list shortcuts", () => {
     fireEvent.change(await screen.findByRole("textbox", { name: "Task title" }), {
       target: { value: "Review task 2" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete 2 review tasks" }));
     fireEvent.submit(screen.getByRole("textbox", { name: "Task title" }).closest("form")!);
 
@@ -311,7 +311,7 @@ describe("KenchiShell list shortcuts", () => {
       const latestCall = mocks.replaceWorkspaceItems.mock.calls[
         mocks.replaceWorkspaceItems.mock.calls.length - 1
       ];
-      expect(latestCall?.[0]).toBe("/tmp/kenchi-test-vault");
+      expect(latestCall?.[0]).toBe("/tmp/lira-test-vault");
       expect(latestCall?.[1]).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -341,7 +341,7 @@ describe("KenchiShell list shortcuts", () => {
     fireEvent.change(await screen.findByRole("textbox", { name: "Task title" }), {
       target: { value: "Review task 3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
     expect(screen.getByRole("button", { name: "Complete 2 review tasks" })).toBeDisabled();
   });
 
@@ -372,7 +372,7 @@ describe("KenchiShell list shortcuts", () => {
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Kenchi" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Lira" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("creates a project-board task in the focused lane and links it to the project", async () => {
@@ -752,7 +752,7 @@ describe("KenchiShell list shortcuts", () => {
       });
 
       expect(mocks.updateTask).toHaveBeenCalledWith(
-        "/tmp/kenchi-test-vault",
+        "/tmp/lira-test-vault",
         expect.objectContaining({
           id: "task-1",
           description: "AB",
@@ -896,7 +896,7 @@ describe("KenchiShell list shortcuts", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
-    expect(await screen.findByRole("heading", { name: "Kenchi" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lira" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Enter" });
 
@@ -906,7 +906,7 @@ describe("KenchiShell list shortcuts", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Back to project board" }));
 
-    expect(await screen.findByRole("heading", { name: "Kenchi" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lira" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Back to project board" })).not.toBeInTheDocument();
   });
 

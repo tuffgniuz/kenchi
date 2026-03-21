@@ -10,7 +10,7 @@ describe("NewTaskModal", () => {
         onClose={vi.fn()}
         goals={[]}
         projects={[
-          { id: "project-1", name: "Kenchi" },
+          { id: "project-1", name: "Lira" },
           { id: "project-2", name: "Atlas" },
         ]}
         onSubmit={vi.fn()}
@@ -20,7 +20,7 @@ describe("NewTaskModal", () => {
     expect(screen.getByRole("textbox", { name: "Task title" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Task description" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "No project" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kenchi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lira" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Task project" })).not.toBeInTheDocument();
 
     expect(screen.queryByText("Title")).not.toBeInTheDocument();
@@ -36,7 +36,7 @@ describe("NewTaskModal", () => {
         isOpen
         onClose={vi.fn()}
         goals={[]}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={onSubmit}
       />,
     );
@@ -44,7 +44,7 @@ describe("NewTaskModal", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Task title" }), {
       target: { value: "Ship task flow" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
     fireEvent.submit(screen.getByRole("textbox", { name: "Task title" }).closest("form")!);
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -65,7 +65,7 @@ describe("NewTaskModal", () => {
         goals={[
           { id: "goal-1", title: "Complete 5 review tasks", remainingSlots: 3, projectId: "project-1" },
         ]}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={onSubmit}
       />,
     );
@@ -73,7 +73,7 @@ describe("NewTaskModal", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Task title" }), {
       target: { value: "Review task 1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete 5 review tasks" }));
     fireEvent.submit(screen.getByRole("textbox", { name: "Task title" }).closest("form")!);
 
@@ -93,7 +93,7 @@ describe("NewTaskModal", () => {
         isOpen
         onClose={vi.fn()}
         goals={[]}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={onSubmit}
       />,
     );
@@ -123,7 +123,7 @@ describe("NewTaskModal", () => {
         isOpen
         onClose={vi.fn()}
         goals={[]}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={onSubmit}
       />,
     );
@@ -147,7 +147,7 @@ describe("NewTaskModal", () => {
         goals={[
           { id: "goal-1", title: "Complete 5 review tasks", remainingSlots: 0, projectId: "project-1" },
         ]}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={vi.fn()}
       />,
     );

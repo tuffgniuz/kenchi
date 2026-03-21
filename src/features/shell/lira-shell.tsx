@@ -11,6 +11,7 @@ import {
   SparkIcon,
 } from "../../app/icons";
 import {
+  readStoredVaultPath,
   navigationItems,
   vaultPathStorageKey,
 } from "../../app/navigation";
@@ -226,7 +227,7 @@ function locationsMatch(left: NavigationLocation, right: NavigationLocation) {
   );
 }
 
-export function KenchiShell() {
+export function LiraShell() {
   const {
     activeThemeId,
     activeAccentToken,
@@ -250,7 +251,7 @@ export function KenchiShell() {
     }
 
     return getInitialVaultPath(
-      window.localStorage.getItem(vaultPathStorageKey),
+      readStoredVaultPath(window.localStorage),
       import.meta.env.DEV,
     );
   });
@@ -792,10 +793,10 @@ export function KenchiShell() {
       clearKeySequence();
     }
 
-    window.addEventListener("kenchi:close-goal-panel", handleCloseGoalPanel);
+    window.addEventListener("lira:close-goal-panel", handleCloseGoalPanel);
 
     return () => {
-      window.removeEventListener("kenchi:close-goal-panel", handleCloseGoalPanel);
+      window.removeEventListener("lira:close-goal-panel", handleCloseGoalPanel);
     };
   }, []);
 
@@ -804,7 +805,7 @@ export function KenchiShell() {
       return;
     }
 
-    const storedVaultPath = window.localStorage.getItem(vaultPathStorageKey);
+    const storedVaultPath = readStoredVaultPath(window.localStorage);
 
     if (!shouldAutoInitializeDevelopmentVault(storedVaultPath, import.meta.env.DEV)) {
       return;
@@ -1894,7 +1895,7 @@ export function KenchiShell() {
               <span className="sidebar__brand-copy">
                 <span className="sidebar__brand-name">
                   {(profile.name.trim() || defaultProfile.name).replace(/'$/, "")}
-                  &apos;s Kenchi
+                  &apos;s Lira
                 </span>
               </span>
             </button>

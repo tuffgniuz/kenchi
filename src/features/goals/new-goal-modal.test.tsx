@@ -9,7 +9,7 @@ describe("NewGoalModal", () => {
         isOpen
         onClose={vi.fn()}
         projects={[
-          { id: "project-1", name: "Kenchi" },
+          { id: "project-1", name: "Lira" },
           { id: "project-2", name: "Atlas" },
         ]}
         onSubmit={vi.fn()}
@@ -25,7 +25,7 @@ describe("NewGoalModal", () => {
     expect(screen.getByRole("button", { name: "Weekly" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Goal target")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "No project" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kenchi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lira" })).toBeInTheDocument();
 
     expect(screen.queryByText("How this goal works")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Add note...")).not.toBeInTheDocument();
@@ -40,7 +40,7 @@ describe("NewGoalModal", () => {
         isOpen
         onClose={vi.fn()}
         projects={[
-          { id: "project-1", name: "Kenchi" },
+          { id: "project-1", name: "Lira" },
           { id: "project-2", name: "Atlas" },
         ]}
         onSubmit={vi.fn()}
@@ -50,9 +50,9 @@ describe("NewGoalModal", () => {
     expect(screen.queryByRole("listbox", { name: "Project options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Select project" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
 
-    expect(screen.getByRole("button", { name: "Kenchi" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Lira" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("submits a task-based goal with the explicit target, period, and project", () => {
@@ -62,7 +62,7 @@ describe("NewGoalModal", () => {
       <NewGoalModal
         isOpen
         onClose={vi.fn()}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         onSubmit={onSubmit}
       />,
     );
@@ -76,7 +76,7 @@ describe("NewGoalModal", () => {
       target: { value: "5" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
-    fireEvent.click(screen.getByRole("button", { name: "Kenchi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lira" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -162,7 +162,7 @@ describe("NewGoalModal", () => {
       <NewGoalModal
         isOpen
         onClose={vi.fn()}
-        projects={[{ id: "project-1", name: "Kenchi" }]}
+        projects={[{ id: "project-1", name: "Lira" }]}
         initialGoal={{
           title: "Review transcript work",
           description: "",
@@ -180,7 +180,7 @@ describe("NewGoalModal", () => {
     expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Goal target")).toHaveValue(3);
     expect(screen.getByRole("button", { name: "Weekly" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Kenchi" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Lira" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.change(screen.getByLabelText("Goal sentence"), {
       target: { value: "Review transcript work thoroughly" },

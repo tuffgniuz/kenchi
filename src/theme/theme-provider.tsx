@@ -14,9 +14,28 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-const themeIdStorageKey = "kenchi:theme-id";
-const accentTokenStorageKey = "kenchi:theme-accent-token";
+const themeIdStorageKey = "lira:theme-id";
+const accentTokenStorageKey = "lira:theme-accent-token";
 const defaultAccentToken: ThemeColorToken = "accent";
+
+function findStoredValueBySuffix(storage: Storage, key: string, suffix: string) {
+  for (let index = 0; index < storage.length; index += 1) {
+    const candidateKey = storage.key(index);
+
+    if (!candidateKey?.endsWith(suffix)) {
+      continue;
+    }
+
+    const value = storage.getItem(candidateKey);
+
+    if (value) {
+      storage.setItem(key, value);
+      return value;
+    }
+  }
+
+  return null;
+}
 
 function getThemeById(themeId: string) {
   return builtInThemes.find((theme) => theme.id === themeId) ?? builtInThemes[0];
@@ -27,7 +46,9 @@ function readStoredThemeId() {
     return defaultThemeId;
   }
 
-  const storedThemeId = window.localStorage.getItem(themeIdStorageKey);
+  const storedThemeId =
+    window.localStorage.getItem(themeIdStorageKey) ??
+    findStoredValueBySuffix(window.localStorage, themeIdStorageKey, ":theme-id");
 
   return storedThemeId && builtInThemes.some((theme) => theme.id === storedThemeId)
     ? storedThemeId
@@ -39,7 +60,13 @@ function readStoredAccentToken(): ThemeColorToken {
     return defaultAccentToken;
   }
 
-  const storedAccentToken = window.localStorage.getItem(accentTokenStorageKey);
+  const storedAccentToken =
+    window.localStorage.getItem(accentTokenStorageKey) ??
+    findStoredValueBySuffix(
+      window.localStorage,
+      accentTokenStorageKey,
+      ":theme-accent-token",
+    );
 
   return storedAccentToken && storedAccentToken in builtInThemes[0].colors
     ? (storedAccentToken as ThemeColorToken)

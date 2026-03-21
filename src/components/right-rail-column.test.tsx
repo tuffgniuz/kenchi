@@ -60,7 +60,7 @@ describe("RightRailColumn", () => {
             id: "goal-1",
             kind: "goal",
             title: "Finish three tasks",
-            project: "Kenchi",
+            project: "Lira",
             goalPeriod: "daily",
             goalMetric: "tasks_completed",
             goalTarget: 3,
@@ -72,6 +72,6 @@ describe("RightRailColumn", () => {
       />,
     );
 
-    expect(screen.getByText("Kenchi")).toBeInTheDocument();
+    expect(screen.getByText("Lira")).toBeInTheDocument();
   });
 });

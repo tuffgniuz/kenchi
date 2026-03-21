@@ -28,11 +28,11 @@ describe("SettingsModal", () => {
       <SettingsModal
         activeSection="vault"
         {...baseProps}
-        pendingVaultPath="~/.kenchi-dev-vault"
+        pendingVaultPath="~/.lira-dev-vault"
       />,
     );
 
-    expect(screen.getByLabelText("Vault path")).toHaveValue("~/.kenchi-dev-vault");
+    expect(screen.getByLabelText("Vault path")).toHaveValue("~/.lira-dev-vault");
   });
 
   it("uses a custom image picker button in profile settings", () => {

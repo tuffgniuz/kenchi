@@ -37,7 +37,7 @@ export const goalSuggestions: GoalSuggestion[] = [
   {
     id: "project-weekly",
     label: "Work on a project",
-    sentence: "Work on Kenchi every week",
+    sentence: "Work on Lira every week",
   },
 ];
 

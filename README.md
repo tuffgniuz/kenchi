@@ -1,12 +1,21 @@
 <div align="center">
 
-# Kenchi
+# Lira
 
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/tuffgniuz/kenchi?style=for-the-badge&labelColor=%23181926&color=%23eed49f)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tuffgniuz/kenchi?style=for-the-badge&labelColor=%23181926&color=%23a6da95)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/tuffgniuz/lira?style=for-the-badge&labelColor=%23181926&color=%23eed49f)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tuffgniuz/lira?style=for-the-badge&labelColor=%23181926&color=%23a6da95)
+
+*/ˈliː.ra/ (LEE-rah)*
+
+**noun**
+
+1. A state of smooth, continuous movement; flow without friction.  
+2. Effortless productivity achieved through natural, uninterrupted action.  
+3. A system or approach that enables work to progress intuitively and efficiently, without unnecessary resistance or complexity.
+
 
 ## Summary
-Kenchi is an opinionated, keyboard-first, local-first desktop system for independent work. It is designed for people who need help turning scattered thoughts, intrusive ideas, goals, and intentions into a clear daily workflow through quick capture, task management, lightweight projects, measurable goals, and reflective journaling.
+Lira is an opinionated, keyboard-first, local-first desktop system for independent work.
 </div>
 
 ## Keymappings
@@ -63,17 +72,17 @@ Kenchi is an opinionated, keyboard-first, local-first desktop system for indepen
   - `Shift+Enter` inserts a newline in the `New Project` description textarea
 
 ## Vault Storage
-Kenchi currently uses a vault-based storage model.
+Lira currently uses a vault-based storage model.
 
 - a vault is a user-selected directory
-- if the selected vault path does not exist, Kenchi creates it
-- `~` paths such as `~/Documents/kenchi` are supported
+- if the selected vault path does not exist, Lira creates it
+- `~` paths such as `~/Documents/lira` are supported
 - captured inbox items are currently stored in `.inbox/inbox.json` inside the vault
 
 Example:
 
 ```text
-/home/your-user/Documents/kenchi/.inbox/inbox.json
+/home/your-user/Documents/lira/.inbox/inbox.json
 ```
 
 ## Local Development

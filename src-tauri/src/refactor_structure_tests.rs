@@ -1,0 +1,74 @@
+use crate::commands::vault::resolve_vault_path;
+use crate::application::vault::open_database;
+use crate::persistence::repositories::task_repository::TaskRepository;
+use crate::transport::journal::JournalEntryDto;
+use crate::transport::workspace::WorkspaceItemDto;
+use tempfile::tempdir;
+
+#[test]
+fn exposes_refactored_backend_modules_for_commands_and_transport_types() {
+    let path = resolve_vault_path("~/lira-test").expect("path should resolve");
+    assert!(path.ends_with("lira-test"));
+
+    let workspace_item = WorkspaceItemDto {
+        id: "item-1".into(),
+        kind: "capture".into(),
+        state: "inbox".into(),
+        source_type: "capture".into(),
+        title: "Title".into(),
+        content: "Content".into(),
+        created_at: "2026-03-22T00:00:00Z".into(),
+        updated_at: "2026-03-22T00:00:00Z".into(),
+        tags: Vec::new(),
+        project_id: None,
+        project_lane_id: None,
+        project: String::new(),
+        is_completed: false,
+        priority: String::new(),
+        due_date: String::new(),
+        completed_at: String::new(),
+        estimate: String::new(),
+        schedule_bucket: None,
+        source_capture_id: None,
+        goal_metric: None,
+        goal_target: 1,
+        goal_progress: 0,
+        goal_progress_by_date: std::collections::HashMap::new(),
+        goal_period: "weekly".into(),
+        goal_scope: None,
+    };
+
+    let journal_entry = JournalEntryDto {
+        id: "journal-1".into(),
+        date: "2026-03-22".into(),
+        morning_intention: String::new(),
+        diary_entry: String::new(),
+        reflection_entry: String::new(),
+        focuses: Vec::new(),
+        commitments: Vec::new(),
+        reflection: crate::transport::journal::JournalReflectionDto::default(),
+        created_at: "2026-03-22T00:00:00Z".into(),
+        updated_at: "2026-03-22T00:00:00Z".into(),
+    };
+
+    assert_eq!(workspace_item.kind, "capture");
+    assert_eq!(journal_entry.date, "2026-03-22");
+    let repository_type_name = std::any::type_name::<TaskRepository<'static>>();
+    assert!(repository_type_name.contains("TaskRepository"));
+}
+
+#[test]
+fn migrates_an_existing_hidden_app_database_into_the_lira_layout() {
+    let vault_dir = tempdir().expect("temporary vault should initialize");
+    let hidden_app_dir = vault_dir.path().join(".archive");
+    std::fs::create_dir_all(&hidden_app_dir).expect("hidden app directory should be created");
+
+    let legacy_db_path = hidden_app_dir.join("archive.sqlite3");
+    crate::persistence::database::Database::open(&legacy_db_path)
+        .expect("legacy app database should initialize");
+
+    open_database(vault_dir.path()).expect("database should open through the lira layout");
+
+    assert!(vault_dir.path().join(".lira").join("lira.sqlite3").exists());
+    assert!(!legacy_db_path.exists());
+}

@@ -1,11 +1,11 @@
 import { ThemeProvider } from "./theme/theme-provider";
-import { KenchiShell } from "./features/shell/kenchi-shell";
+import { LiraShell } from "./features/shell/lira-shell";
 import "./app.css";
 
 function App() {
   return (
     <ThemeProvider>
-      <KenchiShell />
+      <LiraShell />
     </ThemeProvider>
   );
 }

@@ -1,4 +1,4 @@
-export const defaultDevelopmentVaultPath = "~/.kenchi-dev-vault";
+export const defaultDevelopmentVaultPath = "~/.lira-dev-vault";
 
 export function getInitialVaultPath(storedVaultPath: string | null, isDevelopment: boolean) {
   const normalizedStoredVaultPath = storedVaultPath?.trim() ?? "";

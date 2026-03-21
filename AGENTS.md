@@ -1,6 +1,6 @@
-## Kenchi Overview
+## Lira Overview
 
-Kenchi is a local-first, keyboard-driven desktop productivity app built with Tauri, React, TypeScript, and a Rust backend.
+Lira is a local-first, keyboard-driven desktop productivity app built with Tauri, React, TypeScript, and a Rust backend.
 
 The app is designed around distinct but connected domains such as:
 - captures / inbox
@@ -11,7 +11,7 @@ The app is designed around distinct but connected domains such as:
 - tags
 - relationships
 
-Kenchi is not a generic CRUD dashboard. It should feel fast, intentional, and structured.
+Lira is not a generic CRUD dashboard. It should feel fast, intentional, and structured.
 
 ---
 
@@ -19,7 +19,7 @@ Kenchi is not a generic CRUD dashboard. It should feel fast, intentional, and st
 
 ### 1. Respect the architecture boundary
 
-Kenchi uses a Rust backend as the local persistence and filesystem boundary.
+Lira uses a Rust backend as the local persistence and filesystem boundary.
 
 That means:
 - Rust owns local disk access
@@ -92,7 +92,7 @@ Avoid:
 
 This section has equal priority to Core Engineering Rules.
 
-Kenchi uses a calm, flat, keyboard-first design language.
+Lira uses a calm, flat, keyboard-first design language.
 
 The UI must feel:
 - minimal
@@ -131,7 +131,7 @@ Do not use:
 - elevation effects
 
 Avoid visual depth tricks.
-Kenchi should remain visually flat.
+Lira should remain visually flat.
 
 #### 3. No decorative depth
 Do not use:
@@ -168,7 +168,7 @@ Examples:
 
 ### Focus and active state rules
 
-Kenchi is keyboard-first, so focus and active states must always be visible.
+Lira is keyboard-first, so focus and active states must always be visible.
 
 Prefer:
 - background change

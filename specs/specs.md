@@ -1,10 +1,10 @@
-# Kenchi Project Specification
+# Lira Project Specification
 
 ## 1. Overview
 
-Kenchi is a local-first, keyboard-driven desktop productivity and knowledge tool built with **Tauri** and **React**. Its purpose is to help users capture thoughts quickly, manage tasks, organize project work, write and connect markdown notes, reflect through journaling, define measurable goals, and navigate everything through a shared tagging and linking system.
+Lira is a local-first, keyboard-driven desktop productivity and knowledge tool built with **Tauri** and **React**. Its purpose is to help users capture thoughts quickly, manage tasks, organize project work, write and connect markdown notes, reflect through journaling, define measurable goals, and navigate everything through a shared tagging and linking system.
 
-Kenchi is designed first for users who think and work through the keyboard, especially those familiar with Vim-like workflows. It should feel fast, structured, extensible, and personal. It is not meant to be a bloated workspace platform or a team collaboration tool. It is a focused personal operating system for thought and execution.
+Lira is designed first for users who think and work through the keyboard, especially those familiar with Vim-like workflows. It should feel fast, structured, extensible, and personal. It is not meant to be a bloated workspace platform or a team collaboration tool. It is a focused personal operating system for thought and execution.
 
 The app must also be plugin-based and themeable from the start, so that future functionality can be added without forcing major rewrites.
 
@@ -12,7 +12,7 @@ The app must also be plugin-based and themeable from the start, so that future f
 
 ## 2. Product Vision
 
-Kenchi should combine these ideas into one coherent workflow:
+Lira should combine these ideas into one coherent workflow:
 
 * capture quickly
 * organize clearly
@@ -33,7 +33,7 @@ Example flow:
 * A journal entry may reflect on progress
 * Notes, tasks, goals, projects, and inbox items can all be connected through tags and links
 
-Kenchi should feel like a keyboard-first hybrid of:
+Lira should feel like a keyboard-first hybrid of:
 
 * markdown notes
 * task management
@@ -59,11 +59,11 @@ Notes and journal content should use markdown as the primary content format. Tas
 
 ### 3.4 Plugin-based
 
-Kenchi should be architected so that future features can be implemented as plugins, including official first-party modules.
+Lira should be architected so that future features can be implemented as plugins, including official first-party modules.
 
 ### 3.5 Themeable
 
-Kenchi should support both built-in and user-defined themes through a token-based theme system.
+Lira should support both built-in and user-defined themes through a token-based theme system.
 
 ### 3.6 Simple by default
 
@@ -73,7 +73,7 @@ The first version should not try to solve every productivity problem. Features m
 
 ## 4. Target User
 
-Kenchi is primarily designed for:
+Lira is primarily designed for:
 
 * individual users
 * developers
@@ -123,7 +123,7 @@ This decision can be finalized later, but the architecture should allow both tex
 
 ## 6. Core Feature Set
 
-Kenchi will include the following product domains:
+Lira will include the following product domains:
 
 * Notes
 * Tasks
@@ -390,7 +390,7 @@ Task status should drive lane placement. Lane changes should update task status 
 
 ### Scope guard
 
-Projects should remain lightweight. Kenchi should not become an enterprise PM tool.
+Projects should remain lightweight. Lira should not become an enterprise PM tool.
 
 ---
 
@@ -439,7 +439,7 @@ Examples:
 
 ### Purpose
 
-Kenchi must feel fully operable through the keyboard.
+Lira must feel fully operable through the keyboard.
 
 ### Core requirements
 
@@ -488,7 +488,7 @@ The exact default mapping may evolve, but the architecture must support this fro
 
 ### Purpose
 
-Allow Kenchi to be extended over time by first-party and third-party plugins.
+Allow Lira to be extended over time by first-party and third-party plugins.
 
 ### Architectural principle
 
@@ -734,7 +734,7 @@ May be explicit or derived, depending on architecture:
 
 ## 13. Storage Considerations
 
-Because Kenchi mixes markdown content and structured productivity data, it may benefit from hybrid storage.
+Because Lira mixes markdown content and structured productivity data, it may benefit from hybrid storage.
 
 ### Candidate approach
 
@@ -754,7 +754,7 @@ Do not force everything into raw markdown if it creates complexity for tasks, pr
 
 ## 14. Search and Discovery
 
-Kenchi should support unified search across:
+Lira should support unified search across:
 
 * notes
 * tasks
@@ -854,7 +854,7 @@ This is the right order because it builds the platform before the surface featur
 
 ## 18. Product Identity Summary
 
-Kenchi is:
+Lira is:
 
 * local-first
 * keyboard-first
@@ -863,7 +863,7 @@ Kenchi is:
 * themeable
 * built for thought, execution, and reflection
 
-Kenchi is not:
+Lira is not:
 
 * a bloated Notion clone
 * a team PM suite
